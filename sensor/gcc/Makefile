@@ -4,7 +4,7 @@ OUTPUT_DIRECTORY := _build
 
 SDK_ROOT:= D:/nRF52/gnu_gcc_environment/SDKs/nRF5_SDK_14.1.0
 PROJ_DIR := D:/nRF52/rsWBAN_Project/sensor
-MYLIB_DIR := D:/nRF52/myLib
+MYLIB_DIR := D:/nRF52/rsWBAN_Project/myLib
 
 # C MACROS
 CFLAGS += -DNRF52_SENSOR

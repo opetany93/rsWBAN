@@ -13,7 +13,7 @@ CFLAGS += -DNRF52_PAN_74
 
 SDK_ROOT:= D:/nRF52/gnu_gcc_environment/SDKs/nRF5_SDK_14.1.0
 PROJ_DIR := D:/nRF52/rsWBAN_Project/host
-MYLIB_DIR := D:/nRF52/myLib
+MYLIB_DIR := D:/nRF52/rsWBAN_Project/myLib
 
 $(OUTPUT_DIRECTORY)/nrf52832_xxaa.out: \
   LINKER_SCRIPT  := gcc_nrf52.ld
