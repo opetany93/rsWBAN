@@ -5,7 +5,11 @@
 #include "mydefinitions.h"
 #include "ADXL362.h"
 
+#define ADXL362_ENABLE 0
+
+#if ADXL362_ENABLE
 spiHandle_t adxl362spiHandle;
+#endif
 
 //===================================================================================
 void RADIO_IRQHandler(void)
@@ -36,9 +40,11 @@ void RTC0_IRQHandler()
   }
 }
 
+#if ADXL362_ENABLE
 static void spiSendADXL362Interface(uint8_t byte){ spiSend(adxl362spiHandle, byte); }
 static uint8_t spiReadADXL362Interface(void){ return spiRead(adxl362spiHandle); }
 static void spiControlChipSelectADXL362Interface(uint8_t state){ spiControlChipSelect(adxl362spiHandle, state); }
+#endif
 
 // =======================================================================================
 void GPIOTE_IRQHandler(void)
@@ -49,11 +55,13 @@ void GPIOTE_IRQHandler(void)
 		
 		if( 0 == connect() )
 		{
+#if ADXL362_ENABLE
 			adxl362spiHandle = spiInit(SPI0, SCK_PIN, MOSI_PIN, MISO_PIN, CS_PIN, SPI_FREQUENCY_FREQUENCY_M4, SPI_MODE_0, SPI_ORDER_MSB_FIRST);
 			if ( 0 > ADXL362_Init(spiSendADXL362Interface, spiReadADXL362Interface, spiControlChipSelectADXL362Interface) )
 			{
 				error();
 			}
+#endif
 			
 #if FIFO_ENABLED
 

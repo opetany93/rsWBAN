@@ -22,8 +22,8 @@
 typedef enum 
 {
 	RADIO_OK			= 0x00U,
-  RADIO_CRCError       	= 0x01U,
-  RADIO_ACKError   		= 0x02U,
+	RADIO_CRCError      = 0x01U,
+	RADIO_ACKError   	= 0x02U,
 
 } RADIO_status_t;
 

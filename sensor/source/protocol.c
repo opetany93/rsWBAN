@@ -133,20 +133,32 @@ void radioSensorHandler()
 
 void timeSlotHandler()
 {
+	static uint8_t inc = 0;
 	RADIO->SHORTS = RADIO_SHORTS_READY_START_Msk | RADIO_SHORTS_END_DISABLE_Msk;
 	
 	((data_packet_t *)packet)->payloadSize = packetLength - 1;
 	((data_packet_t *)packet)->type = PACKET_data;
 	
-	SPI_ENABLE(SPI0);
+	//SPI_ENABLE(SPI0);
 	
 #if FIFO_ENABLED
 	ADXL362_ReadFifo(((data_packet_t *)packet)->data, 15);		// 5 samples of 3 axis
 #else
-	ADXL362_ReadXYZ(&((data_packet_t *)packet)->axes);
+	//ADXL362_ReadXYZ(&((data_packet_t *)packet)->axes);
 #endif
 
-	SPI_DISABLE(SPI0);
+	//SPI_DISABLE(SPI0);
+
+	if( 255 > ((data_packet_t *)packet)->axes.x )
+	{
+		((data_packet_t *)packet)->axes.x = (inc += 5);
+	}
+	else
+	{
+		((data_packet_t *)packet)->axes.x = 0;
+	}
+
+
 
 	while ( !isHFCLKstable() );					// wait for stable HCLK which has been started via RTC0 event through PPI
 

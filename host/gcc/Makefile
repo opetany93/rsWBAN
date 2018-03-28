@@ -2,11 +2,10 @@ PROJECT_NAME     := rsWBAN-host
 TARGETS          := nrf52832_xxaa
 OUTPUT_DIRECTORY := _build
 
-# C MACROS
-CFLAGS += -DNRF52_HOST
-CFLAGS += -DBOARD_PCA10040
-CFLAGS += -DBSP_DEFINES_ONLY
-CFLAGS += -DCONFIG_GPIO_AS_PINRESET
+#PLATFORM = NRF52_SENSOR
+PLATFORM = NRF52_HOST
+
+# Common C MACROS
 CFLAGS += -DNRF52
 CFLAGS += -DNRF52832_XXAA
 CFLAGS += -DNRF52_PAN_74
@@ -22,9 +21,31 @@ $(OUTPUT_DIRECTORY)/nrf52832_xxaa.out: \
 SRC_FILES += \
   $(SDK_ROOT)/components/toolchain/gcc/gcc_startup_nrf52.S \
   $(SDK_ROOT)/components/toolchain/system_nrf52.c \
-  $(wildcard $(PROJ_DIR)/source/*.c) \
-  $(wildcard $(MYLIB_DIR)/source/*.c) \
-  $(SDK_ROOT)/components/boards/boards.c \
+  $(wildcard $(PROJ_DIR)/source/*.c) 
+
+ifeq ($(PLATFORM), NRF52_HOST)
+
+	CFLAGS += -DNRF52_HOST
+	CFLAGS += -DBOARD_PCA10040
+	CFLAGS += -DBSP_DEFINES_ONLY
+	CFLAGS += -DCONFIG_GPIO_AS_PINRESET
+	
+	SRC_FILES += \
+		$(wildcard $(MYLIB_DIR)/source/*.c) \
+    	$(SDK_ROOT)/components/boards/boards.c
+    	
+else ifeq ($(PLATFORM), NRF52_SENSOR)
+
+	CFLAGS += -DNRF52_SENSOR
+	
+	SRC_FILES += \
+    	$(MYLIB_DIR)/source/clocks.c \
+  		$(MYLIB_DIR)/source/hal.c \
+  		$(MYLIB_DIR)/source/radio.c \
+  		$(MYLIB_DIR)/source/spi.c \
+  		$(MYLIB_DIR)/drivers/src/ADXL362.c
+  		
+endif
   
 # Include folders common to all targets
 INC_FOLDERS += \

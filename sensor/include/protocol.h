@@ -26,8 +26,8 @@ typedef struct{
 	uint8_t 		sync;
 	uint16_t 		rtc_val_CC0;
 	uint16_t 		rtc_val_CC1;
-	uint8_t 		testPacketLength;				//	value in bytes
-	uint8_t			txPower;						//	value in dBm
+	uint8_t 		testPacketLength;			//	value in bytes
+	uint8_t			txPower;					//	value in dBm
 	uint8_t			turnOff;
 	
 }sync_packet_t;

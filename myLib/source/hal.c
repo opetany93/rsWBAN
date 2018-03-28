@@ -25,7 +25,7 @@ void error(void)
 #if defined(NRF52_SENSOR)
 // -------------------------------------------------------------------------------------
 
-#define DC_DC_CONVERTER_ON 		1
+#define DC_DC_CONVERTER_ON 		0
 
 void boardInit(void)
 {
