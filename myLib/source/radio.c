@@ -103,8 +103,6 @@ void radioSensorInit(void)
 	RADIO->CRCINIT = 0xFFFFUL;   // Initial value
 	RADIO->CRCPOLY = 0x11021UL;  // CRC poly: x^16+x^12^x^5+1
 
-
-	//set NVIC
 	NVIC_SetPriority(RADIO_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), RADIO_INTERRUPT_PRIORITY, 0));
 	NVIC_EnableIRQ(RADIO_IRQn);
 }
@@ -158,8 +156,7 @@ void radioHostInit(void)
 	NRF_RADIO->INTENSET = RADIO_INTENSET_END_Enabled << RADIO_INTENSET_END_Pos;
 	
 	//set NVIC
-	NVIC_SetPriority(RADIO_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), 
-									 LOW_IRQ_PRIO, RADIO_IRQ_PRIORITY));
+	NVIC_SetPriority(RADIO_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), LOW_IRQ_PRIO, RADIO_IRQ_PRIORITY));
 	NVIC_EnableIRQ(RADIO_IRQn);
 }
 #endif

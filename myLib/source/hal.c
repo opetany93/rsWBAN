@@ -21,6 +21,37 @@ void error(void)
 	}
 }
 
+static void initGpio()
+{
+#if defined(NRF52_SENSOR)
+	nrf_gpio_cfg_output(LED_1);
+	nrf_gpio_cfg_output(LED_2);
+	nrf_gpio_cfg_output(SCL_PIN);
+
+	nrf_gpio_pin_set(LED_1);
+	nrf_gpio_pin_set(LED_2);
+
+#elif defined(BOARD_PCA10040)
+	nrf_gpio_cfg_output(LED_1);
+	nrf_gpio_cfg_output(LED_2);
+	nrf_gpio_cfg_output(LED_3);
+	nrf_gpio_cfg_output(LED_4);
+
+	nrf_gpio_pin_set(LED_1);
+	nrf_gpio_pin_set(LED_2);
+	nrf_gpio_pin_set(LED_3);
+	nrf_gpio_pin_set(LED_4);
+
+	//buttons
+	nrf_gpio_cfg_input(BUTTON_1, NRF_GPIO_PIN_PULLUP);
+	nrf_gpio_cfg_input(BUTTON_2, NRF_GPIO_PIN_PULLUP);
+	nrf_gpio_cfg_input(BUTTON_3, NRF_GPIO_PIN_PULLUP);
+	nrf_gpio_cfg_input(BUTTON_4, NRF_GPIO_PIN_PULLUP);
+
+	nrf_gpio_cfg_output(ARDUINO_1_PIN); // for measurement
+#endif
+}
+
 // -------------------------------------------------------------------------------------
 #if defined(NRF52_SENSOR)
 // -------------------------------------------------------------------------------------
@@ -31,12 +62,7 @@ void boardInit(void)
 {
 	NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_3);			// preemption 3 bits, subpriority 1 bit
 	
-	nrf_gpio_cfg_output(LED_1);
-	nrf_gpio_cfg_output(LED_2);
-	nrf_gpio_cfg_output(SCL_PIN);
-	
-	nrf_gpio_pin_set(LED_1);
-	nrf_gpio_pin_set(LED_2);
+	initGpio();
 
 #if DC_DC_CONVERTER_ON	
 	NRF_POWER->DCDCEN = 1U;															//Internal DC/DC regulator enable
@@ -57,7 +83,7 @@ void buttonInterruptInit(void)
 {
 	// button gpio init for interrupt 
 	nrf_gpio_cfg_sense_input(BUTTON, NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_LOW);
-	BUTTON_INTERRUPT_ENABLE();														// enable interrupt from PORT EVENT
+	BUTTON_INTERRUPT_ENABLE();										// enable interrupt from PORT EVENT
 	
 	NVIC_SetPriority(GPIOTE_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), GPIOTE_INTERRUPT_PRIORITY, 0));									// set and enable NVIC for button interrupt
 	NVIC_EnableIRQ(GPIOTE_IRQn);
@@ -66,52 +92,25 @@ void buttonInterruptInit(void)
 // -------------------------------------------------------------------------------------
 #elif defined(BOARD_PCA10040)
 // -------------------------------------------------------------------------------------
-char buf[150];
+char uartBuf[100];
 
 //===================================================================================
 void boardInit(void)
 {
 	NVIC_SetPriorityGrouping(7 - PREEMPTION_PRIORITY_BITS);
-	
+
 	//systick - przerwanie co 1ms
 	//SysTick_Config(SystemCoreClock/1000);
-	
-	nrf_gpio_cfg_output(LED_1);
-	nrf_gpio_cfg_output(LED_2);
-	nrf_gpio_cfg_output(LED_3);
-	nrf_gpio_cfg_output(LED_4);
-	
-	nrf_gpio_cfg_output(31);	//debug
-	nrf_gpio_cfg_output(ARDUINO_0_PIN);	//debug
-	nrf_gpio_cfg_output(12);	//debug
-	//nrf_gpio_cfg_output(SCL_PIN);
-	
-	nrf_gpio_pin_set(LED_1);
-	nrf_gpio_pin_set(LED_2);
-	nrf_gpio_pin_set(LED_3);
-	nrf_gpio_pin_set(LED_4);
-	
-	//gpio init - buttons
-	nrf_gpio_cfg_input(BUTTON_1, NRF_GPIO_PIN_PULLUP);
-	nrf_gpio_cfg_input(BUTTON_2, NRF_GPIO_PIN_PULLUP);
-	nrf_gpio_cfg_input(BUTTON_3, NRF_GPIO_PIN_PULLUP);
-	nrf_gpio_cfg_input(BUTTON_4, NRF_GPIO_PIN_PULLUP);
+
+	initGpio();
 	
 	uartInit();
-	//uartDmaInit();
-	//timInit();
-	
-	sprintf(buf,"\r\n========== nRF52xxx HOST ===========\r\n");
-	uartWriteS(buf);
-	sprintf(buf,"Compilation: %s,%s\r\n\r\n",__DATE__,__TIME__);
-	uartWriteS(buf);
-	sprintf(buf,"TEST WIRELESS PROTOCOL\r\n\r\n");
-	uartWriteS(buf);
-
-	//NVIC_SetPriority(RNG_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), 10, 0));
-	NVIC_EnableIRQ(RNG_IRQn);
-	
-	NRF_RNG->CONFIG = 1;
+	sprintf(uartBuf,"\r\n========== nRF52xxx HOST ===========\r\n");
+	uartWriteS(uartBuf);
+	sprintf(uartBuf,"Compilation: %s,%s\r\n\r\n",__DATE__,__TIME__);
+	uartWriteS(uartBuf);
+	sprintf(uartBuf,"Real-Time Synchronous WBAN\r\n\r\n");
+	uartWriteS(uartBuf);
 	
 	if ( 0 > startLFCLK() )					// start 32,768 kHz oscillator
 	{

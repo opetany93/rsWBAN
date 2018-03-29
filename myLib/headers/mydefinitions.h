@@ -1,6 +1,8 @@
 #ifndef __MYDEFINITIONS_H_
 #define __MYDEFINITIONS_H_
 
+#define RNG_ENABLE()						NRF_RNG->CONFIG = 1
+
 #if defined(NRF52_SENSOR)
 
 	// GPIO
@@ -22,8 +24,8 @@
 	#define BUTTON_INTERRUPT_DISABLE()		GPIOTE->INTENCLR = GPIOTE_INTENCLR_PORT_Enabled << GPIOTE_INTENCLR_PORT_Pos
 
 	// UART
-	#define TX_PIN							10
-	#define RX_PIN							9
+	#define UART_TX_PIN						10
+	#define UART_RX_PIN						9
 
 	// I2C
 	#define SCL_PIN							6

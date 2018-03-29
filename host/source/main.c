@@ -2,7 +2,6 @@
 #include "radio.h"
 #include "protocol_host.h"
 
-
 // =======================================================================================
 int main(void)
 {
@@ -16,7 +15,7 @@ int main(void)
 	startListening();
 	
 	while(1)
-	{	
+	{
 		__WFI();
 	}
 }
