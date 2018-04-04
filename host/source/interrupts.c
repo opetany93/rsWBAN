@@ -21,7 +21,7 @@ void RADIO_IRQHandler(void)
 	{
 		RADIO->EVENTS_END = 0U;
 		
-		radioHostHandler();
+		//radioHostHandler();
 	}
 }
 
@@ -31,8 +31,17 @@ void RTC0_IRQHandler()								// synchronizacja
 	if (RTC0->EVENTS_COMPARE[0])
 	{
 		RTC0->EVENTS_COMPARE[0] = 0;
-		
-		syncTransmitHandler();
+
+		NRF_GPIO->OUTSET = (1 << ARDUINO_1_PIN);
+		NRF_GPIO->OUTCLR = (1 << ARDUINO_1_PIN);
+	}
+
+	if (RTC0->EVENTS_COMPARE[1])
+	{
+		RTC0->EVENTS_COMPARE[1] = 0;
+
+		NRF_GPIO->OUTSET = (1 << ARDUINO_0_PIN);
+		NRF_GPIO->OUTCLR = (1 << ARDUINO_0_PIN);
 	}
 }
 
@@ -43,7 +52,7 @@ void RTC1_IRQHandler()								// szczelina czasowa dla sensora
 	{
 		RTC1->EVENTS_COMPARE[0] = 0;
 		
-		timeSlotListenerHandler();
+		//timeSlotListenerHandler();
 	}
 }
 

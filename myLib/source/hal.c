@@ -37,6 +37,9 @@ static void initGpio()
 	nrf_gpio_cfg_output(LED_3);
 	nrf_gpio_cfg_output(LED_4);
 
+	nrf_gpio_cfg_output(ARDUINO_0_PIN);
+	nrf_gpio_cfg_output(ARDUINO_1_PIN);
+
 	nrf_gpio_pin_set(LED_1);
 	nrf_gpio_pin_set(LED_2);
 	nrf_gpio_pin_set(LED_3);
