@@ -34,6 +34,8 @@ void RTC0_IRQHandler()								// synchronizacja
 
 		NRF_GPIO->OUTSET = (1 << ARDUINO_1_PIN);
 		NRF_GPIO->OUTCLR = (1 << ARDUINO_1_PIN);
+
+		RTC1->TASKS_START = 1U;			// startuj RTC1 odpowiedzialne za szczeliny czasowe dla sensorów
 	}
 
 	if (RTC0->EVENTS_COMPARE[1])
@@ -42,6 +44,9 @@ void RTC0_IRQHandler()								// synchronizacja
 
 		NRF_GPIO->OUTSET = (1 << ARDUINO_0_PIN);
 		NRF_GPIO->OUTCLR = (1 << ARDUINO_0_PIN);
+
+		RTC1->TASKS_STOP = 1U;
+		RTC1->TASKS_CLEAR = 1U;
 	}
 }
 
@@ -52,7 +57,10 @@ void RTC1_IRQHandler()								// szczelina czasowa dla sensora
 	{
 		RTC1->EVENTS_COMPARE[0] = 0;
 		
-		//timeSlotListenerHandler();
+		RTC1->TASKS_CLEAR = 1U;
+
+		NRF_GPIO->OUTSET = (1 << 31);
+		NRF_GPIO->OUTCLR = (1 << 31);
 	}
 }
 
