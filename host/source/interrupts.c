@@ -14,6 +14,9 @@ int angle1 = 0;
 int x1, y1;
 
 void lcd_SpinningLine(void);
+
+volatile uint8_t temp = 0;
+
 // ===================================================================================
 void RADIO_IRQHandler(void)
 {
@@ -35,7 +38,7 @@ void RTC0_IRQHandler()								// synchronizacja
 		NRF_GPIO->OUTSET = (1 << ARDUINO_1_PIN);
 		NRF_GPIO->OUTCLR = (1 << ARDUINO_1_PIN);
 
-		RTC1->TASKS_START = 1U;			// startuj RTC1 odpowiedzialne za szczeliny czasowe dla sensorów
+		//RTC1->TASKS_START = 1U;			// startuj RTC1 odpowiedzialne za szczeliny czasowe dla sensorów
 	}
 
 	if (RTC0->EVENTS_COMPARE[1])
@@ -57,10 +60,22 @@ void RTC1_IRQHandler()								// szczelina czasowa dla sensora
 	{
 		RTC1->EVENTS_COMPARE[0] = 0;
 		
-		RTC1->TASKS_CLEAR = 1U;
+		if ((temp > 1) && (temp < 3))
+		{
+			NRF_GPIO->OUTSET = (1 << 31);
+			NRF_GPIO->OUTCLR = (1 << 31);
+		}
 
-		NRF_GPIO->OUTSET = (1 << 31);
-		NRF_GPIO->OUTCLR = (1 << 31);
+		if(temp > 1)
+		{
+			RTC1->TASKS_STOP = 1U;
+			temp = 0;
+		}
+		else
+		{
+			RTC1->TASKS_CLEAR = 1U;
+			temp++;
+		}
 	}
 }
 

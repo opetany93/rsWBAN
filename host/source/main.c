@@ -5,8 +5,8 @@
 
 static void initRtc0()
 {
-	RTC0->CC[0] = 66;			// rozpoczoczêcie szczelin
-	RTC0->CC[1] = 1639;			// wyznaczanie SUF
+	RTC0->CC[0] = 65;			// rozpoczoczêcie szczelin
+	RTC0->CC[1] = 1638;			// wyznaczanie SUF
 	
 	RTC0->PRESCALER = 0;
 
@@ -17,6 +17,10 @@ static void initRtc0()
 
 	NVIC_SetPriority(RTC0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), HIGH_IRQ_PRIO, RTC0_IRQ_PRIORITY));
 	NVIC_EnableIRQ(RTC0_IRQn);
+
+	PPI->CH[0].EEP = (uint32_t) &RTC0->EVENTS_COMPARE[0];
+	PPI->CH[0].TEP = (uint32_t) &RTC1->TASKS_START;
+	PPI->CHENSET = PPI_CHENSET_CH0_Enabled << PPI_CHENSET_CH0_Pos;
 
 	PPI->CH[1].EEP = (uint32_t) &RTC0->EVENTS_COMPARE[1];
 	PPI->CH[1].TEP = (uint32_t) &RTC0->TASKS_CLEAR;
@@ -35,7 +39,7 @@ static void initRtc1()
 	NVIC_SetPriority(RTC1_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), HIGH_IRQ_PRIO, RTC1_IRQ_PRIORITY));
 	NVIC_EnableIRQ(RTC1_IRQn);
 
-	RTC1->CC[0] = 393;
+	RTC1->CC[0] = 392;
 	RTC1->TASKS_CLEAR = 1U;
 }
 
