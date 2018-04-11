@@ -123,7 +123,7 @@ void syncTransmitHandler()
 {
 	sendDataToPC();
 
-	nrf_gpio_pin_set(ARDUINO_1_PIN);
+	NRF_GPIO->OUTSET = (1 << ARDUINO_1_PIN);
 
 	disableRadio();
 	RADIO->FREQUENCY = SYNC_CHANNEL;
@@ -144,7 +144,7 @@ void syncTransmitHandler()
 	RADIO->EVENTS_END = 0U;
 	RADIO_END_INT_ENABLE();
 	
-	nrf_gpio_pin_clear(ARDUINO_1_PIN);
+	NRF_GPIO->OUTCLR = (1 << ARDUINO_1_PIN);
 
 	RADIO->TASKS_RXEN = 1U;									// Enable radio and wait for ready
 	
