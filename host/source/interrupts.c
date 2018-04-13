@@ -7,9 +7,9 @@
 #include "mydefinitions.h"
 
 // ===================================================================================
-extern volatile uint8_t 				connected_sensors_amount;
+extern volatile uint8_t connected_sensors_amount;
 
-volatile char 							buf_lcd[20];
+volatile char buf_lcd[20];
 int angle1 = 0;
 int x1, y1;
 
@@ -29,41 +29,40 @@ void RADIO_IRQHandler(void)
 }
 
 // ===================================================================================
-void RTC0_IRQHandler()								// synchronizacja
+void RTC0_IRQHandler()
 {
-	if (RTC0->EVENTS_COMPARE[0])
+	if (RTC0->EVENTS_COMPARE[0])					// SYNC stop and start time slots (via PPI)
 	{
 		RTC0->EVENTS_COMPARE[0] = 0;
 
 		NRF_GPIO->OUTSET = (1 << ARDUINO_1_PIN);
 		NRF_GPIO->OUTCLR = (1 << ARDUINO_1_PIN);
-
-		//RTC1->TASKS_START = 1U;			// startuj RTC1 odpowiedzialne za szczeliny czasowe dla sensorów
 	}
 
-	if (RTC0->EVENTS_COMPARE[1])
+	if (RTC0->EVENTS_COMPARE[1])					// SYNC start
 	{
 		RTC0->EVENTS_COMPARE[1] = 0;
 
 		NRF_GPIO->OUTSET = (1 << ARDUINO_0_PIN);
 		NRF_GPIO->OUTCLR = (1 << ARDUINO_0_PIN);
 
-		RTC1->TASKS_STOP = 1U;
-		RTC1->TASKS_CLEAR = 1U;
+		//syncTransmitHandler();
 	}
 }
 
 // ===================================================================================
-void RTC1_IRQHandler()								// szczelina czasowa dla sensora
+void RTC1_IRQHandler()								// time slot for sensor
 {
 	if (RTC1->EVENTS_COMPARE[0])
 	{
 		RTC1->EVENTS_COMPARE[0] = 0;
 		
-		if ((temp > 1) && (temp < 3))
+		if ((temp >= 0) && (temp < 3))
 		{
 			NRF_GPIO->OUTSET = (1 << 31);
 			NRF_GPIO->OUTCLR = (1 << 31);
+
+			//timeSlotListenerHandler();
 		}
 
 		if(temp > 1)
@@ -73,14 +72,13 @@ void RTC1_IRQHandler()								// szczelina czasowa dla sensora
 		}
 		else
 		{
-			RTC1->TASKS_CLEAR = 1U;
 			temp++;
 		}
 	}
 }
 
 // =======================================================================================
-void TIMER1_IRQHandler(void)						// odswierzanie wyswietlacza
+void TIMER1_IRQHandler(void)						// odswie¿anie wyswietlacza
 {
 	if(TIMER1->EVENTS_COMPARE[0])
 	{

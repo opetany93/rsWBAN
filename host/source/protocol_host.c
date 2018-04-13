@@ -156,8 +156,6 @@ void syncTransmitHandler()
 
 void timeSlotListenerHandler()
 {
-	RTC1->TASKS_CLEAR = 1U;
-
 	nrf_gpio_pin_toggle(31);								// toggle pin for debug
 	
 	if ( connected_sensors_flags & (1 << channel) )
