@@ -223,26 +223,23 @@ void sendDataToPC()
 //		}
 //	}
 
-//	if( connected_sensors_amount == 2 )
-//	{
-//		sprintf(buf, "%d, %d, %d, %d, %d, %d, %d, %d\r\n", packets[0]->axes.x, packets[0]->data[4],
-//																			   packets[0]->data[140], packets[0]->data[50],
-//																			   packets[1]->axes.x, packets[1]->data[4],
-//																			   packets[1]->data[140], packets[1]->data[50] );
-//		uartWriteS(buf);
-//	}
+	if( connected_sensors_amount == 2 )
+	{
+		sprintf(uartBuf, "%d %d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x);
+		uartWriteS(uartBuf);
+	}
 
-//		if( connected_sensors_amount == 3 ) 
-//		{
-//			sprintf(buf, "%d, %d, %d, %d, %d\r\n", packets[0]->axes.x, packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x, packets[2]->axes.x);
-//			uartWriteS(buf);
-//		}
-//		
-//		if( connected_sensors_amount == 4 ) 
-//		{
-//			sprintf(buf, "%d, %d, %d, %d, %d, %d\r\n", packets[0]->axes.x, packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x, packets[2]->axes.x, packets[3]->axes.x);
-//			uartWriteS(buf);
-//		}
+	if( connected_sensors_amount == 3 )
+	{
+		sprintf(uartBuf, "%d %d %d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x, packets[2]->axes.x);
+		uartWriteS(uartBuf);
+	}
+
+	if( connected_sensors_amount == 4 )
+	{
+		sprintf(uartBuf, "%d %d %d %d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x, packets[2]->axes.x, packets[3]->axes.x);
+		uartWriteS(uartBuf);
+	}
 }
 
 // =======================================================================================

@@ -56,7 +56,7 @@ static void initGpio()
 #if defined(NRF52_SENSOR)
 // -------------------------------------------------------------------------------------
 
-#define DC_DC_CONVERTER_ON 		0
+#define DC_DC_CONVERTER_ON 		1
 
 void boardInit(void)
 {

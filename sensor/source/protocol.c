@@ -7,11 +7,12 @@
 #include "ADXL362.h"
 #include "mytypes.h"
 
-#define ATTEMPTS_OF_CONNECT		20
+#define ATTEMPTS_OF_CONNECT		50
 
 char 							packet[PACKET_SIZE];
 volatile uint8_t 				channel, radio_rx_status;
 volatile uint8_t				packetLength = 24;
+volatile uint16_t inc = 0;
 
 //=======================================================================================
 static void PPI_Init()
@@ -133,11 +134,11 @@ void radioSensorHandler()
 
 void timeSlotHandler()
 {
-	static uint8_t inc = 0;
 	RADIO->SHORTS = RADIO_SHORTS_READY_START_Msk | RADIO_SHORTS_END_DISABLE_Msk;
 	
 	((data_packet_t *)packet)->payloadSize = packetLength - 1;
 	((data_packet_t *)packet)->type = PACKET_data;
+	((data_packet_t *)packet)->channel = channel;
 	
 	//SPI_ENABLE(SPI0);
 	
@@ -149,12 +150,13 @@ void timeSlotHandler()
 
 	//SPI_DISABLE(SPI0);
 
-	if( 255 > ((data_packet_t *)packet)->axes.x )
+	if( 1500 > inc )
 	{
 		((data_packet_t *)packet)->axes.x = (inc += 5);
 	}
 	else
 	{
+		inc = 0;
 		((data_packet_t *)packet)->axes.x = 0;
 	}
 
