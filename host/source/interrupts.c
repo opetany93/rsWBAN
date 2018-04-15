@@ -7,13 +7,13 @@
 #include "mydefinitions.h"
 
 // ===================================================================================
-extern volatile uint8_t connected_sensors_amount;
+extern volatile uint8_t amountOfConnectedSensors;
 
 volatile char buf_lcd[20];
 int angle1 = 0;
 int x1, y1;
 
-void lcd_SpinningLine(void);
+static void lcd_SpinningLine(void);
 
 volatile uint8_t temp = 0;
 
@@ -24,7 +24,7 @@ void RADIO_IRQHandler(void)
 	{
 		RADIO->EVENTS_END = 0U;
 		
-		//radioHostHandler();
+		radioHostHandler();
 	}
 }
 
@@ -34,6 +34,8 @@ void RTC0_IRQHandler()
 	if (RTC0->EVENTS_COMPARE[0])					// SYNC stop and start time slots (via PPI)
 	{
 		RTC0->EVENTS_COMPARE[0] = 0;
+
+		startTimeSlotListener();
 
 		NRF_GPIO->OUTSET = (1 << ARDUINO_1_PIN);
 		NRF_GPIO->OUTCLR = (1 << ARDUINO_1_PIN);
@@ -46,7 +48,7 @@ void RTC0_IRQHandler()
 		NRF_GPIO->OUTSET = (1 << ARDUINO_0_PIN);
 		NRF_GPIO->OUTCLR = (1 << ARDUINO_0_PIN);
 
-		//syncTransmitHandler();
+		syncTransmitHandler();
 	}
 }
 
@@ -62,7 +64,7 @@ void RTC1_IRQHandler()								// time slot for sensor
 			NRF_GPIO->OUTSET = (1 << 31);
 			NRF_GPIO->OUTCLR = (1 << 31);
 
-			//timeSlotListenerHandler();
+			timeSlotListenerHandler();
 		}
 
 		if(temp > 1)
@@ -86,7 +88,7 @@ void TIMER1_IRQHandler(void)						// odswie¿anie wyswietlacza
 		
 		TIMER1->TASKS_CLEAR = 1U;
 		
-		sprintf((char *)buf_lcd, "%d", connected_sensors_amount);
+		sprintf((char *)buf_lcd, "%d", amountOfConnectedSensors);
 		lcd_draw_text(3, 50, (char *)buf_lcd);
 		
 		lcd_SpinningLine();
@@ -96,7 +98,7 @@ void TIMER1_IRQHandler(void)						// odswie¿anie wyswietlacza
 }
 
 // ===================================================================================
-void lcd_SpinningLine(void)
+static void lcd_SpinningLine(void)
 {
 	uint8_t i, k;
 	

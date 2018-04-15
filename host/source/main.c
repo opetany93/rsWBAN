@@ -3,76 +3,16 @@
 #include "protocol_host.h"
 #include "mydefinitions.h"
 
-static void initPPI()
-{
-	// when SYNC slot is over then start RTC1 for time slots
-	PPI->CH[0].EEP = (uint32_t) &RTC0->EVENTS_COMPARE[0];
-	PPI->CH[0].TEP = (uint32_t) &RTC1->TASKS_START;
-	PPI->CHENSET = PPI_CHENSET_CH0_Enabled << PPI_CHENSET_CH0_Pos;
-
-	// when SUF is over start again
-	PPI->CH[1].EEP = (uint32_t) &RTC0->EVENTS_COMPARE[1];
-	PPI->CH[1].TEP = (uint32_t) &RTC0->TASKS_CLEAR;
-	PPI->CHENSET = PPI_CHENSET_CH1_Enabled << PPI_CHENSET_CH1_Pos;
-
-	// when SUF is over then STOP and CLEAR RTC1
-	PPI->CH[2].EEP = (uint32_t) &RTC0->EVENTS_COMPARE[1];
-	PPI->CH[2].TEP = (uint32_t) &RTC1->TASKS_STOP;
-	PPI->FORK[2].TEP = (uint32_t) &RTC1->TASKS_CLEAR;
-	PPI->CHENSET = PPI_CHENSET_CH2_Enabled << PPI_CHENSET_CH2_Pos;
-
-	// when given time slot is over then CLEAR RTC1 and start again with the next time slot
-	PPI->CH[3].EEP = (uint32_t) &RTC1->EVENTS_COMPARE[0];
-	PPI->CH[3].TEP = (uint32_t) &RTC1->TASKS_CLEAR;
-	PPI->CHENSET = PPI_CHENSET_CH3_Enabled << PPI_CHENSET_CH3_Pos;
-}
-
-static void initRtc0()
-{
-	RTC0->CC[0] = 65;			// number of RTC0 impulses after which starts determining the time slots are by RTC1
-	RTC0->CC[1] = 1638;			// determination of the SUF
-
-	RTC0->PRESCALER = 0;
-
-	RTC0->EVTENSET = RTC_EVTENSET_COMPARE0_Enabled << RTC_EVTENSET_COMPARE0_Pos;
-	RTC0->INTENSET = RTC_INTENSET_COMPARE0_Enabled << RTC_INTENSET_COMPARE0_Pos;
-	RTC0->EVTENSET = RTC_EVTENSET_COMPARE1_Enabled << RTC_EVTENSET_COMPARE1_Pos;
-	RTC0->INTENSET = RTC_INTENSET_COMPARE1_Enabled << RTC_INTENSET_COMPARE1_Pos;
-
-	NVIC_SetPriority(RTC0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), HIGH_IRQ_PRIO, RTC0_IRQ_PRIORITY));
-	NVIC_EnableIRQ(RTC0_IRQn);
-
-	RTC0->TASKS_CLEAR = 1U;
-}
-
-static void initRtc1()
-{
-	RTC1->PRESCALER = 0;
-
-	RTC1->EVTENSET = RTC_EVTENSET_COMPARE0_Enabled << RTC_EVTENSET_COMPARE0_Pos;
-	RTC1->INTENSET = RTC_INTENSET_COMPARE0_Enabled << RTC_INTENSET_COMPARE0_Pos;
-
-	NVIC_SetPriority(RTC1_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), HIGH_IRQ_PRIO, RTC1_IRQ_PRIORITY));
-	NVIC_EnableIRQ(RTC1_IRQn);
-
-	RTC1->CC[0] = 392;
-	RTC1->TASKS_CLEAR = 1U;
-}
-
 // =======================================================================================
 int main(void)
 {
 	boardInit();
-	//lcdProtocolInit();
-	//radioHostInit();
+	lcdProtocolInit();
+	Radio *radio = radioHostInit();
+	Protocol *protocol = initProtocol(radio);
 
-	initRtc0();
-	initRtc1();
-	initPPI();
-
-
-
-	RTC0->TASKS_START = 1U;
+	protocol->setFreqCollectData(FREQ_COLLECT_DATA_20Hz);
+	protocol->startListening();
 
 	while(1)
 	{

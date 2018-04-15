@@ -3,9 +3,19 @@
 #include "mydefinitions.h"
 #include "clocks.h"
 
+#include <stdlib.h>
+
 uint8_t 			tempRSSI;
 
-volatile uint8_t 	timeout_flag;
+uint8_t isRxIdleState();
+uint8_t checkCRC();
+void sendPacket(uint32_t *packet);
+void disableRadio(void);
+int8_t readPacket(uint32_t *packet);
+int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms);
+int8_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms);
+
+volatile uint8_t 	timeout_flag = 0;
 
 /**
  * @brief Function for swapping/mirroring bits in a byte.
@@ -62,7 +72,7 @@ static uint32_t bytewise_bitswap(uint32_t inp)
 
 #if defined(NRF52_SENSOR)
 // =======================================================================================
-void radioSensorInit(void)
+Radio* radioSensorInit(void)
 {
 	// Radio config
 	RADIO->TXPOWER   = RADIO_TXPOWER_TXPOWER_0dBm;
@@ -105,16 +115,28 @@ void radioSensorInit(void)
 
 	NVIC_SetPriority(RADIO_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), RADIO_INTERRUPT_PRIORITY, 0));
 	NVIC_EnableIRQ(RADIO_IRQn);
+
+
+	Radio *radio = malloc(sizeof(Radio));
+	radio->sendPacket = sendPacket;
+	radio->readPacket = readPacket;
+	radio->readPacketWithTimeout = readPacketWithTimeout;
+	radio->sendPacketWithResponse = sendPacketWithResponse;
+	radio->disableRadio = disableRadio;
+	radio->isRxIdleState = isRxIdleState;
+	radio->checkCRC = checkCRC;
+
+	return radio;
 }
 
 #elif defined(BOARD_PCA10040)
 //=======================================================================================
-void radioHostInit(void)
+Radio* radioHostInit(void)
 {
 	startHFCLK();
 	// Radio config
-	NRF_RADIO->TXPOWER   = RADIO_TXPOWER_TXPOWER_Pos4dBm;
-	NRF_RADIO->MODE      = RADIO_MODE_MODE_Nrf_1Mbit;
+	NRF_RADIO->TXPOWER = RADIO_TXPOWER_TXPOWER_Pos4dBm;
+	NRF_RADIO->MODE = RADIO_MODE_MODE_Nrf_1Mbit;
 
 	// Radio address config
 	NRF_RADIO->PREFIX0 = 
@@ -158,6 +180,17 @@ void radioHostInit(void)
 	//set NVIC
 	NVIC_SetPriority(RADIO_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), LOW_IRQ_PRIO, RADIO_IRQ_PRIORITY));
 	NVIC_EnableIRQ(RADIO_IRQn);
+
+	Radio *radio = malloc(sizeof(Radio));
+	radio->sendPacket = sendPacket;
+	radio->readPacket = readPacket;
+	radio->readPacketWithTimeout = readPacketWithTimeout;
+	radio->sendPacketWithResponse = sendPacketWithResponse;
+	radio->disableRadio = disableRadio;
+	radio->isRxIdleState = isRxIdleState;
+	radio->checkCRC = checkCRC;
+
+	return radio;
 }
 #endif
 // =======================================================================================
@@ -222,8 +255,10 @@ int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms)
 	RADIO->EVENTS_END = 0U;
 	RADIO->TASKS_RXEN = 1U;
 	
-	while (!(RADIO->EVENTS_END || timeout_flag));
+	while ((0 == RADIO->EVENTS_END) && (0 == timeout_flag));
 	
+	RADIO->EVENTS_END = 0;
+
 	TIMER0_deinit();
 	
 	if(timeout_flag)
@@ -272,4 +307,14 @@ void timeoutInterruptHandler(void)
 	//timer stop
 	//TIMER0->TASKS_STOP = 1U;
 	TIMER0->TASKS_CLEAR = 1U;
+}
+
+inline uint8_t isRxIdleState()
+{
+	return RADIO->STATE == RADIO_STATE_STATE_RxIdle;
+}
+
+inline uint8_t checkCRC()
+{
+	return RADIO->CRCSTATUS == 1U;
 }

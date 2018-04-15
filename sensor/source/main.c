@@ -1,12 +1,14 @@
 #include "hal.h"
 #include "radio.h"
+#include "protocol.h"
 
 //=======================================================================================
 int main(void)
 {
 	boardInit();
-	radioSensorInit();
+	Radio *radio = radioSensorInit();
 	buttonInterruptInit();
+	initProtocol(radio);
 	
 	while(1)
 	{	

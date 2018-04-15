@@ -2,6 +2,7 @@
 #define PROTOCOL_HOST_H_
 
 #include <stdint.h>
+#include "radio.h"
 #include "ADXL362.h"
 
 #define FREQ_COLLECT_DATA_100mHz					1
@@ -30,7 +31,6 @@ typedef struct{
 	uint8_t 	sync;
 	uint16_t 	rtc_val_CC0;
 	uint16_t 	rtc_val_CC1;
-	uint8_t 	testPacketLength;		//	value in bytes
 	uint8_t		txPower;				//	value in dBm
 	uint8_t		turnOff;
 	
@@ -58,20 +58,24 @@ typedef struct{
 	
 }data_packet_t;
 
+typedef struct{
+
+	void (*startListening)(void);
+	void (*setFreqCollectData)(uint8_t freq);
+
+}Protocol;
+
 // =================================== Functions ==========================================
-void startHFCLK(void);
-void RTC0_Sync(void);
-void RTC1_TimeSlot(void);
-void setFreqCollectData(uint8_t freq);
+Protocol* initProtocol(Radio* radioDrv);
+
 void lcdProtocolInit(void);
-void startListening(void);
+
 
 void sendDataToPC(void);
 
 void radioHostHandler(void);
 void timeSlotListenerHandler(void);
+void startTimeSlotListener(void);
 void syncTransmitHandler(void);
-
-uint32_t  rnd8(void);
 
 #endif

@@ -14,18 +14,18 @@
 
 #include "nrf_gpio.h"
 
-char 							packet[PACKET_SIZE];
+char packet[PACKET_SIZE];
 
-volatile data_packet_t 			*packet_ptr = (data_packet_t *)packet;
-volatile data_packet_t 			*packets[4];
+volatile data_packet_t *packet_ptr = (data_packet_t *)packet;
+volatile data_packet_t *packets[4];
 
-volatile uint8_t 				connected_sensors_flags = 0;
-volatile uint8_t 				connected_sensors_amount = 0;
+volatile uint8_t flagsOfConnectedSensors = 0;
+volatile uint8_t amountOfConnectedSensors = 0;
 
-volatile uint8_t 				channel = FIRST_CHANNEL;
+volatile uint8_t channel;
 
-volatile int 					rtc_val_CC0_base;
-volatile int 					rtc_val_CC1;
+volatile uint32_t rtc_val_CC0_base;
+volatile uint32_t rtc_val_CC1;
 
 extern char uartBuf[100];
 volatile uint8_t packetLength = 30;
@@ -33,38 +33,92 @@ volatile uint8_t txPower = 1, turnOff = 0;
 
 ADXL362_AXES_t axis;
 
-static void changeRadioSlotChannel(uint8_t channel)
-{
-	disableRadio();
+Radio *radio = NULL;
 
-	RADIO->FREQUENCY = channel;
-	RADIO->EVENTS_READY = 0U;
-	RADIO->EVENTS_END  = 0U;
-	RADIO->TASKS_RXEN = 1U;								// Enable radio and wait for ready
+void startListening(void);
+void setFreqCollectData(uint8_t freq);
+
+static void RTC0_SUF_init(void);
+static void RTC1_timeSlotsInit(void);
+static void initPPI(void);
+static void prepareSyncPacket();
+static void prepareInitPacket(uint8_t numberOfSlot);
+static uint8_t findFreeTimeSlot();
+static void addSensor(uint8_t numberOfSlot);
+static void changeRadioSlotChannel(uint8_t channel);
+
+Protocol* initProtocol(Radio* radioDrv)
+{
+	Protocol *protocol = malloc(sizeof(Protocol));
+	protocol->setFreqCollectData = setFreqCollectData;
+	protocol->startListening = startListening;
+
+	radio = radioDrv;
+
+	RTC0_SUF_init();
+	RTC1_timeSlotsInit();
+	initPPI();
+
+	return protocol;
 }
 
 // =======================================================================================
-void RTC0_Sync()
+static void RTC0_SUF_init()
 {
+	RTC0->CC[0] = 65;			// number of RTC0 impulses after which starts determining the time slots are by RTC1
+	RTC0->CC[1] = 1638;			// determination of the SUF
+
 	RTC0->PRESCALER = 0;
-	
+
 	RTC0->EVTENSET = RTC_EVTENSET_COMPARE0_Enabled << RTC_EVTENSET_COMPARE0_Pos;
 	RTC0->INTENSET = RTC_INTENSET_COMPARE0_Enabled << RTC_INTENSET_COMPARE0_Pos;
+	RTC0->EVTENSET = RTC_EVTENSET_COMPARE1_Enabled << RTC_EVTENSET_COMPARE1_Pos;
+	RTC0->INTENSET = RTC_INTENSET_COMPARE1_Enabled << RTC_INTENSET_COMPARE1_Pos;
 
 	NVIC_SetPriority(RTC0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), HIGH_IRQ_PRIO, RTC0_IRQ_PRIORITY));
 	NVIC_EnableIRQ(RTC0_IRQn);
+
+	RTC0->TASKS_CLEAR = 1U;
 }
 
 // =======================================================================================
-void RTC1_TimeSlot()
+static void RTC1_timeSlotsInit()
 {
 	RTC1->PRESCALER = 0;
-	
+
 	RTC1->EVTENSET = RTC_EVTENSET_COMPARE0_Enabled << RTC_EVTENSET_COMPARE0_Pos;
 	RTC1->INTENSET = RTC_INTENSET_COMPARE0_Enabled << RTC_INTENSET_COMPARE0_Pos;
-	
+
 	NVIC_SetPriority(RTC1_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), HIGH_IRQ_PRIO, RTC1_IRQ_PRIORITY));
 	NVIC_EnableIRQ(RTC1_IRQn);
+
+	RTC1->CC[0] = 392;
+	RTC1->TASKS_CLEAR = 1U;
+}
+
+// =======================================================================================
+static void initPPI()
+{
+	// when SYNC slot is over then start RTC1 for time slots
+	PPI->CH[0].EEP = (uint32_t) &RTC0->EVENTS_COMPARE[0];
+	PPI->CH[0].TEP = (uint32_t) &RTC1->TASKS_START;
+	PPI->CHENSET = PPI_CHENSET_CH0_Enabled << PPI_CHENSET_CH0_Pos;
+
+	// when SUF is over start again
+	PPI->CH[1].EEP = (uint32_t) &RTC0->EVENTS_COMPARE[1];
+	PPI->CH[1].TEP = (uint32_t) &RTC0->TASKS_CLEAR;
+	PPI->CHENSET = PPI_CHENSET_CH1_Enabled << PPI_CHENSET_CH1_Pos;
+
+	// when SUF is over then STOP and CLEAR RTC1
+	PPI->CH[2].EEP = (uint32_t) &RTC0->EVENTS_COMPARE[1];
+	PPI->CH[2].TEP = (uint32_t) &RTC1->TASKS_STOP;
+	PPI->FORK[2].TEP = (uint32_t) &RTC1->TASKS_CLEAR;
+	PPI->CHENSET = PPI_CHENSET_CH2_Enabled << PPI_CHENSET_CH2_Pos;
+
+	// when given time slot is over then CLEAR RTC1 and start again with the next time slot
+	PPI->CH[3].EEP = (uint32_t) &RTC1->EVENTS_COMPARE[0];
+	PPI->CH[3].TEP = (uint32_t) &RTC1->TASKS_CLEAR;
+	PPI->CHENSET = PPI_CHENSET_CH3_Enabled << PPI_CHENSET_CH3_Pos;
 }
 
 // =======================================================================================
@@ -74,105 +128,102 @@ void startListening()
 	RADIO->TASKS_RXEN = 1U;								// Enable radio and wait for ready
 	
 	RTC0->TASKS_START = 1U;
-	RTC1->TASKS_START = 1U;
 }
 
+// =======================================================================================
 void radioHostHandler()
 {
-	uint8_t free_slot;
-	
-	if( RADIO->STATE == RADIO_STATE_STATE_RxIdle )
+	if(radio->isRxIdleState())
 	{
 		LED_1_TOGGLE();
 		
-		if(RADIO->CRCSTATUS == 1U)
+		if(radio->checkCRC())
 		{
-			if( PACKET_data == packet_ptr->type )	
+			if(PACKET_data == packet_ptr->type)
 			{
 				memcpy((void*)packets[packet_ptr->channel], packet, sizeof(data_packet_t));
 			}
 			
-			else if( PACKET_init == packet_ptr->type )
+			else if(PACKET_init == packet_ptr->type)
 			{
-				for(free_slot = 0; (connected_sensors_flags & (1 << free_slot)); free_slot++);		// szukanie wolnej szczeliny
+				uint8_t freeSlot = findFreeTimeSlot();
 				
-				((init_packet_t *)packet)->channel = free_slot;										// przypisanie id sensora
+				addSensor(freeSlot);
+				prepareInitPacket(freeSlot);
 
-				connected_sensors_flags |= (1 << free_slot);										// sensor is connected
-				
-				packets[free_slot] = (data_packet_t *)malloc(sizeof(data_packet_t));	
-				
-				((init_packet_t *)packet)->payloadSize = 8;
-				((init_packet_t *)packet)->ack = ACK;
-				
-				connected_sensors_amount++;
-
-				((init_packet_t *)packet)->rtc_val_CC0 = rtc_val_CC0_base * ( (2 * (free_slot + 1)) - 1);
-				((init_packet_t *)packet)->rtc_val_CC1 = rtc_val_CC1;
-				
-				packet_ptr->type = 0;
-				
-				sendPacket((uint32_t *)packet);
-				disableRadio();
+				radio->sendPacket((uint32_t *)packet);
+				radio->disableRadio();
 			}
 		}
 	}
 }
 
+// =======================================================================================
+static uint8_t findFreeTimeSlot()
+{
+	uint8_t freeSlot;
+
+	for(freeSlot = 0; (flagsOfConnectedSensors & (1 << freeSlot)); freeSlot++);		// searching for a free time slot
+
+	return freeSlot;
+}
+
+// =======================================================================================
+static void addSensor(uint8_t numberOfSlot)
+{
+	flagsOfConnectedSensors |= (1 << numberOfSlot);								// sensor is connected
+	amountOfConnectedSensors++;
+
+	packets[numberOfSlot] = (data_packet_t *)malloc(sizeof(data_packet_t));
+}
+
+// =======================================================================================
+static void prepareInitPacket(uint8_t numberOfSlot)
+{
+	((init_packet_t *)packet)->channel = numberOfSlot;							// przypisanie id sensora
+	((init_packet_t *)packet)->payloadSize = 8;
+	((init_packet_t *)packet)->ack = ACK;
+	((init_packet_t *)packet)->rtc_val_CC0 = rtc_val_CC0_base * ( (2 * (numberOfSlot + 1)) - 1);
+	((init_packet_t *)packet)->rtc_val_CC1 = rtc_val_CC1;
+}
+
+// =======================================================================================
 void syncTransmitHandler()
 {
-	sendDataToPC();
-
-	nrf_gpio_pin_set(ARDUINO_1_PIN);
-
-	disableRadio();
+	radio->disableRadio();
 	RADIO->FREQUENCY = SYNC_CHANNEL;
 	RADIO_END_INT_DISABLE();
 	
-	((sync_packet_t *)packet)->payloadSize = 8;
+	prepareSyncPacket();
+
+	NRF_GPIO->OUTSET = (1 << ARDUINO_0_PIN);
+	NRF_GPIO->OUTCLR = (1 << ARDUINO_0_PIN);
+
+	radio->sendPacket((uint32_t *)packet);							// send sync packet
+	radio->disableRadio();
+	RADIO->EVENTS_READY = 0U;
+	RADIO->EVENTS_END = 0U;
+	RADIO_END_INT_ENABLE();
+
+	sendDataToPC();
+}
+
+// =======================================================================================
+static void prepareSyncPacket()
+{
+	((sync_packet_t *)packet)->payloadSize = sizeof(sync_packet_t) - 1;
 	((sync_packet_t *)packet)->sync = SYNC;
 	((sync_packet_t *)packet)->rtc_val_CC0 = 0;
 	((sync_packet_t *)packet)->rtc_val_CC1 = 0;
 
-	((sync_packet_t *)packet)->testPacketLength = packetLength;
 	((sync_packet_t *)packet)->txPower = txPower;
 	((sync_packet_t *)packet)->turnOff = turnOff;
-
-	sendPacket((uint32_t *)packet);							// send sync packet
-	disableRadio();
-	RADIO->EVENTS_READY = 0U;
-	RADIO->EVENTS_END = 0U;
-	RADIO_END_INT_ENABLE();
-	
-	nrf_gpio_pin_clear(ARDUINO_1_PIN);
-
-	RADIO->TASKS_RXEN = 1U;									// Enable radio and wait for ready
-	
-	channel = FIRST_CHANNEL;
-	RTC0->TASKS_CLEAR = 1U;
-
-	NVIC_SetPendingIRQ(RTC1_IRQn);
 }
 
-void timeSlotListenerHandler()
-{
-	nrf_gpio_pin_toggle(31);								// toggle pin for debug
-	
-	if ( connected_sensors_flags & (1 << channel) )
-	{
-		changeRadioSlotChannel(channel);
-	}
-	else if( channel != ADVERTISEMENT_CHANNEL )
-	{
-		changeRadioSlotChannel(ADVERTISEMENT_CHANNEL);
-	}
-
-	channel++;
-}
-
+// =======================================================================================
 void sendDataToPC()
 {
-	if( connected_sensors_amount == 1 )
+	if( amountOfConnectedSensors == 1 )
 	{
 		sprintf(uartBuf, "%d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z);
 		uartWriteS(uartBuf);
@@ -221,26 +272,62 @@ void sendDataToPC()
 //		}
 //	}
 
-//	if( connected_sensors_amount == 2 )
-//	{
-//		sprintf(buf, "%d, %d, %d, %d, %d, %d, %d, %d\r\n", packets[0]->axes.x, packets[0]->data[4],
-//																			   packets[0]->data[140], packets[0]->data[50],
-//																			   packets[1]->axes.x, packets[1]->data[4],
-//																			   packets[1]->data[140], packets[1]->data[50] );
-//		uartWriteS(buf);
-//	}
+	if( amountOfConnectedSensors == 2 )
+	{
+		sprintf(uartBuf, "%d %d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x);
+		uartWriteS(uartBuf);
+	}
 
-//		if( connected_sensors_amount == 3 ) 
-//		{
-//			sprintf(buf, "%d, %d, %d, %d, %d\r\n", packets[0]->axes.x, packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x, packets[2]->axes.x);
-//			uartWriteS(buf);
-//		}
-//		
-//		if( connected_sensors_amount == 4 ) 
-//		{
-//			sprintf(buf, "%d, %d, %d, %d, %d, %d\r\n", packets[0]->axes.x, packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x, packets[2]->axes.x, packets[3]->axes.x);
-//			uartWriteS(buf);
-//		}
+	if( amountOfConnectedSensors == 3 )
+	{
+		sprintf(uartBuf, "%d %d %d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x, packets[2]->axes.x);
+		uartWriteS(uartBuf);
+	}
+
+	if( amountOfConnectedSensors == 4 )
+	{
+		sprintf(uartBuf, "%d %d %d %d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x, packets[2]->axes.x, packets[3]->axes.x);
+		uartWriteS(uartBuf);
+	}
+}
+
+// =======================================================================================
+void startTimeSlotListener()
+{
+	RADIO->TASKS_RXEN = 1U;									// Enable radio and wait for ready
+
+	channel = FIRST_CHANNEL;
+
+	timeSlotListenerHandler();
+}
+
+// =======================================================================================
+void timeSlotListenerHandler()
+{
+	if ( flagsOfConnectedSensors & (1 << channel) )
+	{
+		changeRadioSlotChannel(channel);
+	}
+	else if( channel != ADVERTISEMENT_CHANNEL )
+	{
+		changeRadioSlotChannel(ADVERTISEMENT_CHANNEL);
+	}
+
+	channel++;
+}
+
+// =======================================================================================
+static void changeRadioSlotChannel(uint8_t channel)
+{
+	radio->disableRadio();
+
+	RADIO->FREQUENCY = channel;
+	RADIO->EVENTS_READY = 0U;
+	RADIO->EVENTS_END  = 0U;
+	RADIO->TASKS_RXEN = 1U;								// Enable radio and wait for ready
+
+	NRF_GPIO->OUTSET = (1 << ARDUINO_1_PIN);
+	NRF_GPIO->OUTCLR = (1 << ARDUINO_1_PIN);
 }
 
 // =======================================================================================
@@ -306,8 +393,8 @@ void setFreqCollectData(uint8_t freq)
 		case FREQ_COLLECT_DATA_20Hz:
 			rtc_val_CC0_base = 205;
 			rtc_val_CC1 = 1606;
-			RTC0->CC[0] = 1638;
-			RTC1->CC[0] = 410;
+//			RTC0->CC[0] = 1638;
+//			RTC1->CC[0] = 410;
 		
 			lcd_draw_text(2, 0, "Freq: 20 Hz");
 			break;

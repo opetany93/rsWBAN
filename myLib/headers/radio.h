@@ -18,6 +18,19 @@
 #define PACKET_BASE_ADDRESS_LENGTH  (4UL)   //!< Packet base address length field size in bytes
 #define PACKET_STATIC_LENGTH        (0)     //!< Packet static length in bytes
 #define PACKET_PAYLOAD_MAXSIZE      (255UL) //!< Packet payload maximum size in bytes
+
+typedef struct{
+
+	void (*sendPacket)(uint32_t *packet);
+	int8_t (*readPacket)(uint32_t *packet);
+	int8_t (*readPacketWithTimeout)(uint32_t *packet, uint16_t timeout_ms);
+	int8_t (*sendPacketWithResponse)(uint32_t *packet, uint16_t timeout_ms);
+	void (*disableRadio)(void);
+	uint8_t (*isRxIdleState)(void);
+	uint8_t (*checkCRC)(void);
+
+}Radio;
+
 // =======================================================================================
 typedef enum 
 {
@@ -31,20 +44,16 @@ typedef enum
 
 #if defined(NRF52_SENSOR)
 
-void radioSensorInit(void);
+Radio* radioSensorInit(void);
 
 #elif defined(NRF52_HOST)
 
-void 	radioHostInit(void);
+Radio* radioHostInit(void);
 
 #endif
 
-void 	sendPacket(uint32_t *packet);
-int8_t 	readPacket(uint32_t *packet);
 uint8_t getRSSI(void);
-void 	disableRadio(void);
 
-void 	timeoutInterruptHandler(void);
-int8_t 	readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms);
-int8_t 	sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms);
+void timeoutInterruptHandler(void);
+
 #endif
