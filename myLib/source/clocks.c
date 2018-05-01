@@ -6,7 +6,7 @@
 #include "mydefinitions.h"
 
 // =======================================================================================
-int8_t startLFCLK(void)
+inline int8_t startLFCLK(void)
 {
 	if( !isLFCLKstable() )
 	{
@@ -44,7 +44,7 @@ uint8_t isLFCLKstable(void)
 }
 
 // =======================================================================================
-void stopHFCLK()
+inline void stopHFCLK()
 {
 	CLOCK->TASKS_HFCLKSTOP = 1U;
 
@@ -66,7 +66,7 @@ uint8_t isHFCLKstopped()
 	}
 }
 
-int8_t startHFCLK(void)
+inline int8_t startHFCLK(void)
 {
 	if ( !isHFCLKstable() )
 	{

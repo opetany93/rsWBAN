@@ -122,3 +122,9 @@ void boardInit(void)
 	}
 }
 #endif
+
+inline void gpioGeneratePulse(uint8_t pin)
+{
+	NRF_GPIO->OUTSET = (1 << pin);
+	NRF_GPIO->OUTCLR = (1 << pin);
+}

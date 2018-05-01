@@ -62,4 +62,6 @@ void timeSlotHandler(void);
 void syncHandler(void);
 void radioSensorHandler(void);
 
+void timeSlotCallback(void);
+
 #endif

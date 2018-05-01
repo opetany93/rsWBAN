@@ -1,7 +1,6 @@
 #ifndef __lcd_Nokia5110_H__
 #define __lcd_Nokia5110_H__
 
-#include "nrf.h"
 #include <stdint.h>
 #include "mydefinitions.h"
 

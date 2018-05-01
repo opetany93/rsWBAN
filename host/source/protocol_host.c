@@ -2,16 +2,14 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 
 #include "radio.h"
 #include "lcd_Nokia5110.h"
-#include "uart.h"
 #include "mytypes.h"
 #include "mydefinitions.h"
 #include "hal.h"
-#include "ADXL362.h"
 
+#include "nrf.h"
 #include "nrf_gpio.h"
 
 char packet[PACKET_SIZE];
@@ -27,13 +25,12 @@ volatile uint8_t channel;
 volatile uint32_t rtc_val_CC0_base;
 volatile uint32_t rtc_val_CC1;
 
-extern char uartBuf[100];
 volatile uint8_t packetLength = 30;
 volatile uint8_t txPower = 1, turnOff = 0;
 
 ADXL362_AXES_t axis;
 
-Radio *radio = NULL;
+static Radio *radio = NULL;
 
 void startListening(void);
 void setFreqCollectData(uint8_t freq);
@@ -47,6 +44,13 @@ static uint8_t findFreeTimeSlot();
 static void addSensor(uint8_t numberOfSlot);
 static void changeRadioSlotChannel(uint8_t channel);
 
+// =======================================================================================
+__weak void dataReadyCallback(data_packet_t** packets, uint8_t amountOfConnectedSensors)
+{
+
+}
+
+// =======================================================================================
 Protocol* initProtocol(Radio* radioDrv)
 {
 	Protocol *protocol = malloc(sizeof(Protocol));
@@ -82,7 +86,7 @@ static void RTC0_SUF_init()
 }
 
 // =======================================================================================
-static void RTC1_timeSlotsInit()
+static inline void RTC1_timeSlotsInit()
 {
 	RTC1->PRESCALER = 0;
 
@@ -124,8 +128,8 @@ static inline void initPPI()
 // =======================================================================================
 inline void startListening()
 {
-	RADIO->PACKETPTR = (uint32_t)&packet;
-	RADIO->TASKS_RXEN = 1U;								// Enable radio and wait for ready
+	radio->setPacketPtr((uint32_t)packet);
+	radio->rxEnable();								// Enable radio and wait for ready
 	
 	RTC0->TASKS_START = 1U;
 }
@@ -191,21 +195,19 @@ static void prepareInitPacket(uint8_t numberOfSlot)
 inline void syncTransmitHandler()
 {
 	radio->disableRadio();
-	RADIO->FREQUENCY = SYNC_CHANNEL;
-	RADIO_END_INT_DISABLE();
+	radio->setChannel(SYNC_CHANNEL);
+	radio->endInterruptDisable();
 	
 	prepareSyncPacket();
 
-	NRF_GPIO->OUTSET = (1 << ARDUINO_0_PIN);
-	NRF_GPIO->OUTCLR = (1 << ARDUINO_0_PIN);
+	gpioGeneratePulse(ARDUINO_0_PIN);
 
 	radio->sendPacket((uint32_t *)packet);							// send sync packet
 	radio->disableRadio();
-	RADIO->EVENTS_READY = 0U;
-	RADIO->EVENTS_END = 0U;
-	RADIO_END_INT_ENABLE();
+	radio->clearFlags();
+	radio->endInterruptEnable();
 
-	sendDataToPC();
+	dataReadyCallback((data_packet_t**)packets, amountOfConnectedSensors);
 }
 
 // =======================================================================================
@@ -221,80 +223,9 @@ static inline void prepareSyncPacket()
 }
 
 // =======================================================================================
-void sendDataToPC()
-{
-	if( amountOfConnectedSensors == 1 )
-	{
-		sprintf(uartBuf, "%d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z);
-		uartWriteS(uartBuf);
-	}
-
-//	if( connected_sensors_amount == 1 )
-//	{
-//		for(uint8_t i = 0; i < 15; i++)
-//		{
-//			axisTemp = packets[0]->data[i];
-//
-//			if ( (axisTemp >> 14) == 1 )
-//			{
-//				axisTemp <<= 2;
-//				axisTemp >>= 2;
-//
-//				axisTemp |= (axisTemp >> 12) << 14;
-//
-//				axis.y = axisTemp;
-//			}
-//			else if ( (axisTemp >> 14) == 2 )
-//			{
-//				axisTemp <<= 2;
-//				axisTemp >>= 2;
-//
-//				axisTemp |= (axisTemp >> 12) << 14;
-//
-//				axis.z = axisTemp;
-//			}
-//			else if ( (axisTemp >> 14) == 0 )
-//			{
-//				axisTemp <<= 2;
-//				axisTemp >>= 2;
-//
-//				axisTemp |= (axisTemp >> 12) << 14;
-//
-//				axis.x = axisTemp;
-//			}
-//
-//			if ( !((i+1) % 3) )
-//			{
-//				//uartDmaWriteS(buf, sprintf(buf, "%d %d %d\r\n", axis.x, axis.y, axis.z));
-//				sprintf(buf, "%d %d %d\r\n", axis.x, axis.y, axis.z);
-//				uartWriteS(buf);
-//			}
-//		}
-//	}
-
-	if( amountOfConnectedSensors == 2 )
-	{
-		sprintf(uartBuf, "%d %d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x);
-		uartWriteS(uartBuf);
-	}
-
-	if( amountOfConnectedSensors == 3 )
-	{
-		sprintf(uartBuf, "%d %d %d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x, packets[2]->axes.x);
-		uartWriteS(uartBuf);
-	}
-
-	if( amountOfConnectedSensors == 4 )
-	{
-		sprintf(uartBuf, "%d %d %d %d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x, packets[2]->axes.x, packets[3]->axes.x);
-		uartWriteS(uartBuf);
-	}
-}
-
-// =======================================================================================
 void startTimeSlotListener()
 {
-	RADIO->TASKS_RXEN = 1U;									// Enable radio and wait for ready
+	radio->rxEnable();									// Enable radio and wait for ready
 
 	channel = FIRST_CHANNEL;
 
@@ -302,7 +233,7 @@ void startTimeSlotListener()
 }
 
 // =======================================================================================
-void timeSlotListenerHandler()
+inline void timeSlotListenerHandler()
 {
 	if ( flagsOfConnectedSensors & (1 << channel) )
 	{
@@ -320,14 +251,11 @@ void timeSlotListenerHandler()
 static void changeRadioSlotChannel(uint8_t channel)
 {
 	radio->disableRadio();
+	radio->setChannel(channel);
+	radio->clearFlags();
+	radio->rxEnable();								// Enable radio and wait for ready
 
-	RADIO->FREQUENCY = channel;
-	RADIO->EVENTS_READY = 0U;
-	RADIO->EVENTS_END  = 0U;
-	RADIO->TASKS_RXEN = 1U;								// Enable radio and wait for ready
-
-	NRF_GPIO->OUTSET = (1 << ARDUINO_1_PIN);
-	NRF_GPIO->OUTCLR = (1 << ARDUINO_1_PIN);
+	gpioGeneratePulse(ARDUINO_1_PIN);
 }
 
 // =======================================================================================

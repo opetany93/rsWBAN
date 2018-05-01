@@ -1,12 +1,9 @@
 #ifndef __RADIO_H_
 #define __RADIO_H_
 
-#include "nrf.h"
+#include <stdint.h>
 
 #define RADIO_DISABLE()				RADIO->TASKS_DISABLE = 1U
-
-#define RADIO_END_INT_ENABLE()		RADIO->INTENSET = (RADIO_INTENSET_END_Enabled << RADIO_INTENSET_END_Pos)
-#define RADIO_END_INT_DISABLE()		RADIO->INTENCLR = (RADIO_INTENCLR_END_Enabled << RADIO_INTENCLR_END_Pos)
 
 #define PACKET_SIZE					255		// value in bytes
 
@@ -28,6 +25,13 @@ typedef struct{
 	void (*disableRadio)(void);
 	uint8_t (*isRxIdleState)(void);
 	uint8_t (*checkCRC)(void);
+	void (*setChannel)(uint8_t channel);
+	void (*setPacketPtr)(uint32_t ptr);
+	void (*rxEnable)(void);
+	void (*txEnable)(void);
+	void (*endInterruptEnable)(void);
+	void (*endInterruptDisable)(void);
+	void (*clearFlags)(void);
 
 }Radio;
 

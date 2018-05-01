@@ -1,6 +1,8 @@
 #include <math.h>
 #include <stdio.h>
 
+#include "nrf.h"
+
 #include "radio.h"
 #include "protocol_host.h"
 #include "lcd_Nokia5110.h"

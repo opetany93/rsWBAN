@@ -2,18 +2,27 @@
 #include "hal.h"
 #include "mydefinitions.h"
 #include "clocks.h"
+#include "nrf.h"
 
 #include <stdlib.h>
 
 uint8_t 			tempRSSI;
 
-uint8_t isRxIdleState();
-uint8_t checkCRC();
-void sendPacket(uint32_t *packet);
-void disableRadio(void);
-int8_t readPacket(uint32_t *packet);
-int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms);
-int8_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms);
+static inline uint8_t isRxIdleState(void);
+static inline uint8_t checkCRC(void);
+static inline void setChannel(uint8_t channel);
+static inline void setPacketPtr(uint32_t ptr);
+static inline void sendPacket(uint32_t *packet);
+static inline void rxEnable(void);
+static inline void txEnable(void);
+static inline void disableRadio(void);
+static inline void endInterruptEnable(void);
+static inline void endInterruptDisable(void);
+static inline void clearFlags(void);
+
+static inline int8_t readPacket(uint32_t *packet);
+static inline int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms);
+static inline int8_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms);
 
 volatile uint8_t 	timeout_flag = 0;
 
@@ -125,6 +134,13 @@ Radio* radioSensorInit(void)
 	radio->disableRadio = disableRadio;
 	radio->isRxIdleState = isRxIdleState;
 	radio->checkCRC = checkCRC;
+	radio->setChannel = setChannel;
+	radio->setPacketPtr = setPacketPtr;
+	radio->rxEnable = rxEnable;
+	radio->txEnable = txEnable;
+	radio->endInterruptEnable = endInterruptEnable;
+	radio->endInterruptDisable = endInterruptDisable;
+	radio->clearFlags = clearFlags;
 
 	return radio;
 }
@@ -189,12 +205,18 @@ Radio* radioHostInit(void)
 	radio->disableRadio = disableRadio;
 	radio->isRxIdleState = isRxIdleState;
 	radio->checkCRC = checkCRC;
+	radio->setChannel = setChannel;
+	radio->setPacketPtr = setPacketPtr;
+	radio->rxEnable = rxEnable;
+	radio->endInterruptEnable = endInterruptEnable;
+	radio->endInterruptDisable = endInterruptDisable;
+	radio->clearFlags = clearFlags;
 
 	return radio;
 }
 #endif
 // =======================================================================================
-void sendPacket(uint32_t *packet)
+static inline void sendPacket(uint32_t *packet)
 {
 	RADIO->PACKETPTR = (uint32_t)packet;
 	//connect READY event to START task
@@ -208,7 +230,7 @@ void sendPacket(uint32_t *packet)
 // TODO function readPacket with getRSSI
 
 // =======================================================================================
-int8_t readPacket(uint32_t *packet)
+static inline int8_t readPacket(uint32_t *packet)
 {
 	RADIO->PACKETPTR = (uint32_t)packet;
 	//connect READY event to START task
@@ -241,7 +263,7 @@ static void TIMER0_deinit(void)
 }
 
 // =======================================================================================
-int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms)
+static inline int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms)
 {
 	RADIO->PACKETPTR = (uint32_t)packet;
 	
@@ -271,7 +293,7 @@ int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms)
 }
 
 // =======================================================================================
-int8_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms)
+static inline int8_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms)
 {
 	sendPacket((uint32_t *)packet);
 
@@ -292,7 +314,7 @@ uint8_t getRSSI(void)
 }
 
 // =======================================================================================
-void disableRadio(void)
+static inline void disableRadio(void)
 {
 	RADIO->EVENTS_DISABLED = 0U;
 	RADIO->TASKS_DISABLE = 1U;						// disable radio
@@ -309,12 +331,49 @@ void timeoutInterruptHandler(void)
 	TIMER0->TASKS_CLEAR = 1U;
 }
 
-inline uint8_t isRxIdleState()
+static inline uint8_t isRxIdleState()
 {
 	return RADIO->STATE == RADIO_STATE_STATE_RxIdle;
 }
 
-inline uint8_t checkCRC()
+static inline uint8_t checkCRC()
 {
 	return RADIO->CRCSTATUS == 1U;
 }
+
+static inline void setChannel(uint8_t channel)
+{
+	RADIO->FREQUENCY = channel;
+}
+
+static inline void setPacketPtr(uint32_t ptr)
+{
+	RADIO->PACKETPTR = ptr;
+}
+
+static inline void rxEnable()
+{
+	RADIO->TASKS_RXEN = 1U;
+}
+
+static inline void txEnable()
+{
+	RADIO->TASKS_TXEN = 1U;
+}
+
+static inline void endInterruptEnable()
+{
+	RADIO->INTENSET = (RADIO_INTENSET_END_Enabled << RADIO_INTENSET_END_Pos);
+}
+
+static inline void endInterruptDisable()
+{
+	RADIO->INTENCLR = (RADIO_INTENCLR_END_Enabled << RADIO_INTENCLR_END_Pos);
+}
+
+static inline void clearFlags()
+{
+	RADIO->EVENTS_READY = 0U;
+	RADIO->EVENTS_END = 0U;
+}
+

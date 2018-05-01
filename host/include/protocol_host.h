@@ -71,7 +71,7 @@ Protocol* initProtocol(Radio* radioDrv);
 void lcdProtocolInit(void);
 
 
-void sendDataToPC(void);
+void dataReadyCallback(data_packet_t** packets, uint8_t amountOfConnectedSensors);
 
 void radioHostHandler(void);
 void timeSlotListenerHandler(void);
