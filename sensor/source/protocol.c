@@ -7,6 +7,8 @@
 #include "ADXL362.h"
 #include "mytypes.h"
 
+#include <stddef.h>
+
 #define ATTEMPTS_OF_CONNECT		100
 
 char packet[PACKET_SIZE];

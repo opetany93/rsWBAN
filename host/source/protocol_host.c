@@ -97,7 +97,7 @@ static void RTC1_timeSlotsInit()
 }
 
 // =======================================================================================
-static void initPPI()
+static inline void initPPI()
 {
 	// when SYNC slot is over then start RTC1 for time slots
 	PPI->CH[0].EEP = (uint32_t) &RTC0->EVENTS_COMPARE[0];
@@ -122,7 +122,7 @@ static void initPPI()
 }
 
 // =======================================================================================
-void startListening()
+inline void startListening()
 {
 	RADIO->PACKETPTR = (uint32_t)&packet;
 	RADIO->TASKS_RXEN = 1U;								// Enable radio and wait for ready
@@ -131,7 +131,7 @@ void startListening()
 }
 
 // =======================================================================================
-void radioHostHandler()
+inline void radioHostHandler()
 {
 	if(radio->isRxIdleState())
 	{
@@ -188,7 +188,7 @@ static void prepareInitPacket(uint8_t numberOfSlot)
 }
 
 // =======================================================================================
-void syncTransmitHandler()
+inline void syncTransmitHandler()
 {
 	radio->disableRadio();
 	RADIO->FREQUENCY = SYNC_CHANNEL;
@@ -209,7 +209,7 @@ void syncTransmitHandler()
 }
 
 // =======================================================================================
-static void prepareSyncPacket()
+static inline void prepareSyncPacket()
 {
 	((sync_packet_t *)packet)->payloadSize = sizeof(sync_packet_t) - 1;
 	((sync_packet_t *)packet)->sync = SYNC;
