@@ -1,19 +1,24 @@
 #include <math.h>
 #include <stdio.h>
 
+#include "nrf.h"
+
 #include "radio.h"
 #include "protocol_host.h"
 #include "lcd_Nokia5110.h"
 #include "mydefinitions.h"
 
 // ===================================================================================
-extern volatile uint8_t 				connected_sensors_amount;
+extern volatile uint8_t amountOfConnectedSensors;
 
-volatile char 							buf_lcd[20];
+volatile char buf_lcd[20];
 int angle1 = 0;
 int x1, y1;
 
-void lcd_SpinningLine(void);
+static void lcd_SpinningLine(void);
+
+volatile uint8_t temp = 0;
+
 // ===================================================================================
 void RADIO_IRQHandler(void)
 {
@@ -26,29 +31,58 @@ void RADIO_IRQHandler(void)
 }
 
 // ===================================================================================
-void RTC0_IRQHandler()								// synchronizacja
+void RTC0_IRQHandler()
 {
-	if (RTC0->EVENTS_COMPARE[0])
+	if (RTC0->EVENTS_COMPARE[0])					// SYNC stop and start time slots (via PPI)
 	{
 		RTC0->EVENTS_COMPARE[0] = 0;
-		
+
+		startTimeSlotListener();
+
+		NRF_GPIO->OUTSET = (1 << ARDUINO_1_PIN);
+		NRF_GPIO->OUTCLR = (1 << ARDUINO_1_PIN);
+	}
+
+	if (RTC0->EVENTS_COMPARE[1])					// SYNC start
+	{
+		RTC0->EVENTS_COMPARE[1] = 0;
+
+		NRF_GPIO->OUTSET = (1 << ARDUINO_0_PIN);
+		NRF_GPIO->OUTCLR = (1 << ARDUINO_0_PIN);
+
 		syncTransmitHandler();
 	}
 }
 
 // ===================================================================================
-void RTC1_IRQHandler()								// szczelina czasowa dla sensora
+void RTC1_IRQHandler()								// time slot for sensor
 {
 	if (RTC1->EVENTS_COMPARE[0])
 	{
 		RTC1->EVENTS_COMPARE[0] = 0;
 		
-		timeSlotListenerHandler();
+		if ((temp >= 0) && (temp < 3))
+		{
+			NRF_GPIO->OUTSET = (1 << 31);
+			NRF_GPIO->OUTCLR = (1 << 31);
+
+			timeSlotListenerHandler();
+		}
+
+		if(temp > 1)
+		{
+			RTC1->TASKS_STOP = 1U;
+			temp = 0;
+		}
+		else
+		{
+			temp++;
+		}
 	}
 }
 
 // =======================================================================================
-void TIMER1_IRQHandler(void)						// odswierzanie wyswietlacza
+void TIMER1_IRQHandler(void)						// odswie¿anie wyswietlacza
 {
 	if(TIMER1->EVENTS_COMPARE[0])
 	{
@@ -56,7 +90,7 @@ void TIMER1_IRQHandler(void)						// odswierzanie wyswietlacza
 		
 		TIMER1->TASKS_CLEAR = 1U;
 		
-		sprintf((char *)buf_lcd, "%d", connected_sensors_amount);
+		sprintf((char *)buf_lcd, "%d", amountOfConnectedSensors);
 		lcd_draw_text(3, 50, (char *)buf_lcd);
 		
 		lcd_SpinningLine();
@@ -66,7 +100,7 @@ void TIMER1_IRQHandler(void)						// odswierzanie wyswietlacza
 }
 
 // ===================================================================================
-void lcd_SpinningLine(void)
+static void lcd_SpinningLine(void)
 {
 	uint8_t i, k;
 	

@@ -37,6 +37,10 @@ static void initGpio()
 	nrf_gpio_cfg_output(LED_3);
 	nrf_gpio_cfg_output(LED_4);
 
+	nrf_gpio_cfg_output(ARDUINO_0_PIN);
+	nrf_gpio_cfg_output(ARDUINO_1_PIN);
+	nrf_gpio_cfg_output(31);
+
 	nrf_gpio_pin_set(LED_1);
 	nrf_gpio_pin_set(LED_2);
 	nrf_gpio_pin_set(LED_3);
@@ -118,3 +122,9 @@ void boardInit(void)
 	}
 }
 #endif
+
+inline void gpioGeneratePulse(uint8_t pin)
+{
+	NRF_GPIO->OUTSET = (1 << pin);
+	NRF_GPIO->OUTCLR = (1 << pin);
+}

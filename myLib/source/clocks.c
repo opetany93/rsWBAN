@@ -6,7 +6,7 @@
 #include "mydefinitions.h"
 
 // =======================================================================================
-int8_t startLFCLK(void)
+inline int8_t startLFCLK(void)
 {
 	if( !isLFCLKstable() )
 	{
@@ -44,14 +44,37 @@ uint8_t isLFCLKstable(void)
 }
 
 // =======================================================================================
-int8_t startHFCLK(void)
+inline void stopHFCLK()
+{
+	CLOCK->TASKS_HFCLKSTOP = 1U;
+
+	while ( !isHFCLKstopped() )
+		;
+}
+
+uint8_t isHFCLKstopped()
+{
+	uint32_t stat = (uint32_t)(CLOCK_HFCLKSTAT_STATE_NotRunning << CLOCK_HFCLKSTAT_STATE_Pos) | (CLOCK_HFCLKSTAT_SRC_Xtal << CLOCK_HFCLKSTAT_SRC_Pos);
+
+	if ( CLOCK->HFCLKSTAT == stat )
+	{
+		return TRUE;
+	}
+	else
+	{
+		return FALSE;
+	}
+}
+
+inline int8_t startHFCLK(void)
 {
 	if ( !isHFCLKstable() )
 	{
 		CLOCK->EVENTS_HFCLKSTARTED = 0;
 		CLOCK->TASKS_HFCLKSTART = 1U;
 		
-		while ( !isHFCLKstable() );
+		while ( !isHFCLKstable() )
+			;
 		
 		return 0;
 	}

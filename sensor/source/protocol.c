@@ -1,18 +1,74 @@
 #include "protocol.h"
 #include "radio.h"
-#include "spi.h"
 #include "clocks.h"
 #include "nrf_gpio.h"
 #include "mydefinitions.h"
-#include "ADXL362.h"
 #include "mytypes.h"
 
-#define ATTEMPTS_OF_CONNECT		50
+#include <stddef.h>
 
-char 							packet[PACKET_SIZE];
-volatile uint8_t 				channel, radio_rx_status;
-volatile uint8_t				packetLength = 24;
-volatile uint16_t inc = 0;
+#define ATTEMPTS_OF_CONNECT		100
+
+char packet[PACKET_SIZE];
+volatile uint8_t channel, radio_rx_status;
+volatile uint8_t packetLength = 24;
+
+static void PPI_Init();
+static void RTC0_Init(uint32_t valueOfCC0, uint32_t valueOfCC1);
+static uint8_t waitForSync(uint16_t ms);
+
+Radio *radio = NULL;
+
+__weak void timeSlotCallback()
+{
+
+}
+
+void initProtocol(Radio *radioDrv)
+{
+	radio = radioDrv;
+}
+
+// =======================================================================================
+int8_t connect(void)
+{
+	uint8_t read_success = 3;
+
+	startHFCLK();
+	((data_packet_t *)packet)->payloadSize = 1;
+	((data_packet_t *)packet)->type = PACKET_init;
+
+	radio->setChannel(ADVERTISEMENT_CHANNEL); 						// Frequency bin 30, 2430MHz
+
+	for(uint8_t i = 0; (i < ATTEMPTS_OF_CONNECT) && (0 !=  read_success); i++)
+	{
+		read_success = radio->sendPacketWithResponse((uint32_t *)packet, 1);
+		radio->disableRadio();
+	}
+
+	if(0 == read_success)
+	{
+		channel = ((init_packet_t *)packet)->channel;
+
+		PPI_Init();
+		RTC0_Init(((init_packet_t *)packet)->rtc_val_CC0, ((init_packet_t *)packet)->rtc_val_CC1);
+
+		if(waitForSync(200))
+		{
+			radio->setChannel(channel);
+			RTC0->TASKS_CLEAR = 1U;
+			RTC0->TASKS_START = 1U;
+			radio->setPacketPtr((uint32_t)packet);
+			radio->endInterruptEnable();
+		}
+	}
+	else
+	{
+		stopHFCLK();
+	}
+
+	return read_success;
+}
 
 //=======================================================================================
 static void PPI_Init()
@@ -29,8 +85,11 @@ static void PPI_Init()
 }
 
 //=======================================================================================
-static void RTC0_Init()
+static void RTC0_Init(uint32_t valueOfCC0, uint32_t valueOfCC1)
 {
+	RTC0->CC[0] = valueOfCC0;
+	RTC0->CC[1] = valueOfCC1;
+
 	RTC0->PRESCALER = 0;
 	RTC0->EVTENSET = RTC_EVTENSET_COMPARE0_Enabled << RTC_EVTENSET_COMPARE0_Pos; 	// enable generate event for compare0
 	RTC0->INTENSET = RTC_INTENSET_COMPARE0_Enabled << RTC_INTENSET_COMPARE0_Pos;
@@ -41,86 +100,35 @@ static void RTC0_Init()
 }
 
 //=======================================================================================
-static uint8_t waitForSync()
+static uint8_t waitForSync(uint16_t ms)
 {
-	RADIO->FREQUENCY = SYNC_CHANNEL;
+	radio->setChannel(SYNC_CHANNEL);
 
-	if(RADIO_OK == readPacketWithTimeout((uint32_t *)packet, 200) )
-	{
+	if(RADIO_OK == radio->readPacketWithTimeout((uint32_t *)packet, ms))
 		return (SYNC == ((sync_packet_t *)packet)->sync);
-	}
 	else
-	{
 		return FALSE;
-	}
-}
-
-// =======================================================================================
-int8_t connect(void)
-{
-	uint8_t read_success = 3;
-	
-	startHFCLK();
-	((data_packet_t *)packet)->payloadSize = 1;
-	((data_packet_t *)packet)->type = PACKET_init;
-	
-	RADIO->FREQUENCY = ADVERTISEMENT_CHANNEL; 						// Frequency bin 30, 2430MHz
-	
-	for(uint8_t i = 0; (i < ATTEMPTS_OF_CONNECT) && (0 !=  read_success); i++)
-	{
-		read_success =  sendPacketWithResponse((uint32_t *)packet, 5);
-		disableRadio();
-		
-		LED_2_TOGGLE();
-	}
-	
-	if(0 == read_success)
-	{
-		channel = ((init_packet_t *)packet)->channel;
-		
-		RTC0->CC[0] = ((init_packet_t *)packet)->rtc_val_CC0;
-		RTC0->CC[1] = ((init_packet_t *)packet)->rtc_val_CC1;
-
-		PPI_Init();
-		RTC0_Init();
-
-		if(waitForSync())
-		{
-			RADIO->FREQUENCY = channel;
-			RTC0->TASKS_CLEAR = 1U;
-			RTC0->TASKS_START = 1U;
-			RADIO->PACKETPTR = (uint32_t)packet;
-			RADIO_END_INT_ENABLE();
-		}
-	}	
-	
-	return read_success;
 }
 
 //=======================================================================================
-void radioSensorHandler()
+inline void radioSensorHandler()
 {
-	if(RADIO->STATE == RADIO_STATE_STATE_RxIdle)
+	if(radio->isRxIdleState())
 	{
-		if(RADIO->CRCSTATUS == 1U)
+		if(radio->checkCRC())
 		{
-			if( SYNC == ((sync_packet_t *)packet)->sync )
+			if(SYNC == ((sync_packet_t *)packet)->sync)
 			{
-				nrf_gpio_pin_set(SCL_PIN);
-				//RTC0->CC[0] = init_packet.rtc_val_CC0;
-				//RTC0->CC[1] = ack_packet.rtc_val_CC1;
-				
 				RTC0->TASKS_CLEAR = 1U;
 				
-				RADIO->FREQUENCY = channel;	
+				radio->setChannel(channel);
 				
 				radio_rx_status = RADIO_OK;
-				nrf_gpio_pin_clear(SCL_PIN);
 			}
 			else
 			{
+				RTC0->TASKS_CLEAR = 1U;									// sync, but data was not properly readed
 				radio_rx_status = RADIO_ACKError;
-				RTC0->TASKS_CLEAR = 1U;										// sync, but data was not properly readed
 			}
 		}
 		else
@@ -132,7 +140,7 @@ void radioSensorHandler()
 	RADIO_DISABLE();
 }
 
-void timeSlotHandler()
+inline void timeSlotHandler()
 {
 	RADIO->SHORTS = RADIO_SHORTS_READY_START_Msk | RADIO_SHORTS_END_DISABLE_Msk;
 	
@@ -140,45 +148,28 @@ void timeSlotHandler()
 	((data_packet_t *)packet)->type = PACKET_data;
 	((data_packet_t *)packet)->channel = channel;
 	
-	//SPI_ENABLE(SPI0);
-	
-#if FIFO_ENABLED
-	ADXL362_ReadFifo(((data_packet_t *)packet)->data, 15);		// 5 samples of 3 axis
-#else
-	//ADXL362_ReadXYZ(&((data_packet_t *)packet)->axes);
-#endif
+	timeSlotCallback();
 
-	//SPI_DISABLE(SPI0);
+	while ( !isHFCLKstable() )				// wait for stable HCLK which has been started via RTC0 event through PPI
+		;
 
-	if( 1500 > inc )
-	{
-		((data_packet_t *)packet)->axes.x = (inc += 5);
-	}
-	else
-	{
-		inc = 0;
-		((data_packet_t *)packet)->axes.x = 0;
-	}
+	radio->txEnable();
 
-
-
-	while ( !isHFCLKstable() );					// wait for stable HCLK which has been started via RTC0 event through PPI
-
-	RADIO->TASKS_TXEN = 1U;
+	gpioGeneratePulse(SCL_PIN);
+	LED_1_TOGGLE();
 }
 
-void syncHandler()
+inline void syncHandler()
 {
-	RADIO->FREQUENCY = SYNC_CHANNEL;
+	radio->setChannel(SYNC_CHANNEL);
 	RADIO->SHORTS = RADIO_SHORTS_READY_START_Msk;
 	
 	if ( 0 > startHFCLK() )
-	{
 		error();
-	}
 	
-	RADIO->TASKS_RXEN = 1U;
+	radio->rxEnable();
 	
+	gpioGeneratePulse(SCL_PIN);
 	LED_2_TOGGLE();
 }
 

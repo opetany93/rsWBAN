@@ -2,10 +2,29 @@
 #include "hal.h"
 #include "mydefinitions.h"
 #include "clocks.h"
+#include "nrf.h"
+
+#include <stdlib.h>
 
 uint8_t 			tempRSSI;
 
-volatile uint8_t 	timeout_flag;
+static inline uint8_t isRxIdleState(void);
+static inline uint8_t checkCRC(void);
+static inline void setChannel(uint8_t channel);
+static inline void setPacketPtr(uint32_t ptr);
+static inline void sendPacket(uint32_t *packet);
+static inline void rxEnable(void);
+static inline void txEnable(void);
+static inline void disableRadio(void);
+static inline void endInterruptEnable(void);
+static inline void endInterruptDisable(void);
+static inline void clearFlags(void);
+
+static inline int8_t readPacket(uint32_t *packet);
+static inline int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms);
+static inline int8_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms);
+
+volatile uint8_t 	timeout_flag = 0;
 
 /**
  * @brief Function for swapping/mirroring bits in a byte.
@@ -62,7 +81,7 @@ static uint32_t bytewise_bitswap(uint32_t inp)
 
 #if defined(NRF52_SENSOR)
 // =======================================================================================
-void radioSensorInit(void)
+Radio* radioSensorInit(void)
 {
 	// Radio config
 	RADIO->TXPOWER   = RADIO_TXPOWER_TXPOWER_0dBm;
@@ -105,16 +124,35 @@ void radioSensorInit(void)
 
 	NVIC_SetPriority(RADIO_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), RADIO_INTERRUPT_PRIORITY, 0));
 	NVIC_EnableIRQ(RADIO_IRQn);
+
+
+	Radio *radio = malloc(sizeof(Radio));
+	radio->sendPacket = sendPacket;
+	radio->readPacket = readPacket;
+	radio->readPacketWithTimeout = readPacketWithTimeout;
+	radio->sendPacketWithResponse = sendPacketWithResponse;
+	radio->disableRadio = disableRadio;
+	radio->isRxIdleState = isRxIdleState;
+	radio->checkCRC = checkCRC;
+	radio->setChannel = setChannel;
+	radio->setPacketPtr = setPacketPtr;
+	radio->rxEnable = rxEnable;
+	radio->txEnable = txEnable;
+	radio->endInterruptEnable = endInterruptEnable;
+	radio->endInterruptDisable = endInterruptDisable;
+	radio->clearFlags = clearFlags;
+
+	return radio;
 }
 
 #elif defined(BOARD_PCA10040)
 //=======================================================================================
-void radioHostInit(void)
+Radio* radioHostInit(void)
 {
 	startHFCLK();
 	// Radio config
-	NRF_RADIO->TXPOWER   = RADIO_TXPOWER_TXPOWER_Pos4dBm;
-	NRF_RADIO->MODE      = RADIO_MODE_MODE_Nrf_1Mbit;
+	NRF_RADIO->TXPOWER = RADIO_TXPOWER_TXPOWER_Pos4dBm;
+	NRF_RADIO->MODE = RADIO_MODE_MODE_Nrf_1Mbit;
 
 	// Radio address config
 	NRF_RADIO->PREFIX0 = 
@@ -158,10 +196,27 @@ void radioHostInit(void)
 	//set NVIC
 	NVIC_SetPriority(RADIO_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), LOW_IRQ_PRIO, RADIO_IRQ_PRIORITY));
 	NVIC_EnableIRQ(RADIO_IRQn);
+
+	Radio *radio = malloc(sizeof(Radio));
+	radio->sendPacket = sendPacket;
+	radio->readPacket = readPacket;
+	radio->readPacketWithTimeout = readPacketWithTimeout;
+	radio->sendPacketWithResponse = sendPacketWithResponse;
+	radio->disableRadio = disableRadio;
+	radio->isRxIdleState = isRxIdleState;
+	radio->checkCRC = checkCRC;
+	radio->setChannel = setChannel;
+	radio->setPacketPtr = setPacketPtr;
+	radio->rxEnable = rxEnable;
+	radio->endInterruptEnable = endInterruptEnable;
+	radio->endInterruptDisable = endInterruptDisable;
+	radio->clearFlags = clearFlags;
+
+	return radio;
 }
 #endif
 // =======================================================================================
-void sendPacket(uint32_t *packet)
+static inline void sendPacket(uint32_t *packet)
 {
 	RADIO->PACKETPTR = (uint32_t)packet;
 	//connect READY event to START task
@@ -175,7 +230,7 @@ void sendPacket(uint32_t *packet)
 // TODO function readPacket with getRSSI
 
 // =======================================================================================
-int8_t readPacket(uint32_t *packet)
+static inline int8_t readPacket(uint32_t *packet)
 {
 	RADIO->PACKETPTR = (uint32_t)packet;
 	//connect READY event to START task
@@ -208,7 +263,7 @@ static void TIMER0_deinit(void)
 }
 
 // =======================================================================================
-int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms)
+static inline int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms)
 {
 	RADIO->PACKETPTR = (uint32_t)packet;
 	
@@ -222,8 +277,10 @@ int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms)
 	RADIO->EVENTS_END = 0U;
 	RADIO->TASKS_RXEN = 1U;
 	
-	while (!(RADIO->EVENTS_END || timeout_flag));
+	while ((0 == RADIO->EVENTS_END) && (0 == timeout_flag));
 	
+	RADIO->EVENTS_END = 0;
+
 	TIMER0_deinit();
 	
 	if(timeout_flag)
@@ -236,7 +293,7 @@ int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms)
 }
 
 // =======================================================================================
-int8_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms)
+static inline int8_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms)
 {
 	sendPacket((uint32_t *)packet);
 
@@ -257,7 +314,7 @@ uint8_t getRSSI(void)
 }
 
 // =======================================================================================
-void disableRadio(void)
+static inline void disableRadio(void)
 {
 	RADIO->EVENTS_DISABLED = 0U;
 	RADIO->TASKS_DISABLE = 1U;						// disable radio
@@ -273,3 +330,50 @@ void timeoutInterruptHandler(void)
 	//TIMER0->TASKS_STOP = 1U;
 	TIMER0->TASKS_CLEAR = 1U;
 }
+
+static inline uint8_t isRxIdleState()
+{
+	return RADIO->STATE == RADIO_STATE_STATE_RxIdle;
+}
+
+static inline uint8_t checkCRC()
+{
+	return RADIO->CRCSTATUS == 1U;
+}
+
+static inline void setChannel(uint8_t channel)
+{
+	RADIO->FREQUENCY = channel;
+}
+
+static inline void setPacketPtr(uint32_t ptr)
+{
+	RADIO->PACKETPTR = ptr;
+}
+
+static inline void rxEnable()
+{
+	RADIO->TASKS_RXEN = 1U;
+}
+
+static inline void txEnable()
+{
+	RADIO->TASKS_TXEN = 1U;
+}
+
+static inline void endInterruptEnable()
+{
+	RADIO->INTENSET = (RADIO_INTENSET_END_Enabled << RADIO_INTENSET_END_Pos);
+}
+
+static inline void endInterruptDisable()
+{
+	RADIO->INTENCLR = (RADIO_INTENCLR_END_Enabled << RADIO_INTENCLR_END_Pos);
+}
+
+static inline void clearFlags()
+{
+	RADIO->EVENTS_READY = 0U;
+	RADIO->EVENTS_END = 0U;
+}
+
