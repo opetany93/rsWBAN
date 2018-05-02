@@ -6,7 +6,7 @@
 
 #include <stdlib.h>
 
-uint8_t 			tempRSSI;
+uint8_t tempRSSI;
 
 static inline uint8_t isRxIdleState(void);
 static inline uint8_t checkCRC(void);
@@ -19,12 +19,15 @@ static inline void disableRadio(void);
 static inline void endInterruptEnable(void);
 static inline void endInterruptDisable(void);
 static inline void clearFlags(void);
+static inline void readyToStartShortcutSet(void);
+static inline void endToDisableShortcutSet(void);
+static inline void endToDisableShortcutUnset(void);
 
 static inline int8_t readPacket(uint32_t *packet);
 static inline int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms);
 static inline int8_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms);
 
-volatile uint8_t 	timeout_flag = 0;
+volatile uint8_t timeout_flag = 0;
 
 /**
  * @brief Function for swapping/mirroring bits in a byte.
@@ -125,7 +128,6 @@ Radio* radioSensorInit(void)
 	NVIC_SetPriority(RADIO_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), RADIO_INTERRUPT_PRIORITY, 0));
 	NVIC_EnableIRQ(RADIO_IRQn);
 
-
 	Radio *radio = malloc(sizeof(Radio));
 	radio->sendPacket = sendPacket;
 	radio->readPacket = readPacket;
@@ -141,6 +143,9 @@ Radio* radioSensorInit(void)
 	radio->endInterruptEnable = endInterruptEnable;
 	radio->endInterruptDisable = endInterruptDisable;
 	radio->clearFlags = clearFlags;
+	radio->readyToStartShortcutSet = readyToStartShortcutSet;
+	radio->endToDisableShortcutSet = endToDisableShortcutSet;
+	radio->endToDisableShortcutUnset = endToDisableShortcutUnset;
 
 	return radio;
 }
@@ -211,6 +216,9 @@ Radio* radioHostInit(void)
 	radio->endInterruptEnable = endInterruptEnable;
 	radio->endInterruptDisable = endInterruptDisable;
 	radio->clearFlags = clearFlags;
+	radio->readyToStartShortcutSet = readyToStartShortcutSet;
+	radio->endToDisableShortcutSet = endToDisableShortcutSet;
+	radio->endToDisableShortcutUnset = endToDisableShortcutUnset;
 
 	return radio;
 }
@@ -245,7 +253,7 @@ static inline int8_t readPacket(uint32_t *packet)
 }
 
 // =======================================================================================
-static void TIMER0_init(void)
+static inline void TIMER0_init(void)
 {
 	//24bit mode
 	TIMER0->BITMODE = TIMER_BITMODE_BITMODE_24Bit << TIMER_BITMODE_BITMODE_Pos;
@@ -254,12 +262,10 @@ static void TIMER0_init(void)
 }
 
 // =======================================================================================
-static void TIMER0_deinit(void)
+static inline void TIMER0_deinit(void)
 {
 	TIMER0->TASKS_SHUTDOWN = 1U;
 	TIMER0->INTENCLR = TIMER_INTENCLR_COMPARE0_Enabled <<  TIMER_INTENCLR_COMPARE0_Pos;
-	
-	//NVIC_DisableIRQ(TIMER0_IRQn);
 }
 
 // =======================================================================================
@@ -322,7 +328,7 @@ static inline void disableRadio(void)
 	RADIO->EVENTS_DISABLED = 0;
 }
 
-void timeoutInterruptHandler(void)
+inline void timeoutInterruptHandler(void)
 {
 	timeout_flag = 1;
 		
@@ -375,5 +381,18 @@ static inline void clearFlags()
 {
 	RADIO->EVENTS_READY = 0U;
 	RADIO->EVENTS_END = 0U;
+}
+
+static inline void readyToStartShortcutSet(void)
+{
+	RADIO->SHORTS |= RADIO_SHORTS_READY_START_Msk;
+}
+static inline void endToDisableShortcutSet(void)
+{
+	RADIO->SHORTS |= RADIO_SHORTS_END_DISABLE_Msk;
+}
+static inline void endToDisableShortcutUnset(void)
+{
+	RADIO->SHORTS &= ~RADIO_SHORTS_END_DISABLE_Msk;
 }
 

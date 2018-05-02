@@ -32,6 +32,9 @@ typedef struct{
 	void (*endInterruptEnable)(void);
 	void (*endInterruptDisable)(void);
 	void (*clearFlags)(void);
+	void (*readyToStartShortcutSet)(void);
+	void (*endToDisableShortcutSet)(void);
+	void (*endToDisableShortcutUnset)(void);
 
 }Radio;
 

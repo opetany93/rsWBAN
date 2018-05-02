@@ -10,12 +10,15 @@
 #define ATTEMPTS_OF_CONNECT		100
 
 char packet[PACKET_SIZE];
-volatile uint8_t channel, radio_rx_status;
+volatile uint8_t channel, radioRxStatus;
 volatile uint8_t packetLength = 24;
 
+// internal functions
 static void PPI_Init();
 static void RTC0_Init(uint32_t valueOfCC0, uint32_t valueOfCC1);
 static uint8_t waitForSync(uint16_t ms);
+
+static volatile uint8_t syncFlag;
 
 Radio *radio = NULL;
 
@@ -24,6 +27,7 @@ __weak void timeSlotCallback()
 
 }
 
+//=======================================================================================
 void initProtocol(Radio *radioDrv)
 {
 	radio = radioDrv;
@@ -32,7 +36,7 @@ void initProtocol(Radio *radioDrv)
 // =======================================================================================
 int8_t connect(void)
 {
-	uint8_t read_success = 3;
+	uint8_t readSuccess = 3;
 
 	startHFCLK();
 	((data_packet_t *)packet)->payloadSize = 1;
@@ -40,13 +44,13 @@ int8_t connect(void)
 
 	radio->setChannel(ADVERTISEMENT_CHANNEL); 						// Frequency bin 30, 2430MHz
 
-	for(uint8_t i = 0; (i < ATTEMPTS_OF_CONNECT) && (0 !=  read_success); i++)
+	for(uint8_t i = 0; (i < ATTEMPTS_OF_CONNECT) && (0 !=  readSuccess); i++)
 	{
-		read_success = radio->sendPacketWithResponse((uint32_t *)packet, 1);
+		readSuccess = radio->sendPacketWithResponse((uint32_t *)packet, 1);
 		radio->disableRadio();
 	}
 
-	if(0 == read_success)
+	if(0 == readSuccess)
 	{
 		channel = ((init_packet_t *)packet)->channel;
 
@@ -60,6 +64,12 @@ int8_t connect(void)
 			RTC0->TASKS_START = 1U;
 			radio->setPacketPtr((uint32_t)packet);
 			radio->endInterruptEnable();
+			radio->readyToStartShortcutSet();
+			radio->endToDisableShortcutSet();
+		}
+		else
+		{
+			error();
 		}
 	}
 	else
@@ -67,7 +77,7 @@ int8_t connect(void)
 		stopHFCLK();
 	}
 
-	return read_success;
+	return readSuccess;
 }
 
 //=======================================================================================
@@ -113,37 +123,37 @@ static uint8_t waitForSync(uint16_t ms)
 //=======================================================================================
 inline void radioSensorHandler()
 {
-	if(radio->isRxIdleState())
+	if(syncFlag)
 	{
+		syncFlag = 0;
+
 		if(radio->checkCRC())
 		{
 			if(SYNC == ((sync_packet_t *)packet)->sync)
 			{
 				RTC0->TASKS_CLEAR = 1U;
-				
+
 				radio->setChannel(channel);
-				
-				radio_rx_status = RADIO_OK;
+
+				radioRxStatus = RADIO_OK;
 			}
 			else
 			{
 				RTC0->TASKS_CLEAR = 1U;									// sync, but data was not properly readed
-				radio_rx_status = RADIO_ACKError;
+				radioRxStatus = RADIO_ACKError;
 			}
 		}
 		else
 		{
 			RTC0->TASKS_CLEAR = 1U;										// sync, but data was not properly readed
-			radio_rx_status = RADIO_CRCError;
+			radioRxStatus = RADIO_CRCError;
 		}
 	}
-	RADIO_DISABLE();
 }
 
+//=======================================================================================
 inline void timeSlotHandler()
 {
-	RADIO->SHORTS = RADIO_SHORTS_READY_START_Msk | RADIO_SHORTS_END_DISABLE_Msk;
-	
 	((data_packet_t *)packet)->payloadSize = packetLength - 1;
 	((data_packet_t *)packet)->type = PACKET_data;
 	((data_packet_t *)packet)->channel = channel;
@@ -159,10 +169,11 @@ inline void timeSlotHandler()
 	LED_1_TOGGLE();
 }
 
+//=======================================================================================
 inline void syncHandler()
 {
 	radio->setChannel(SYNC_CHANNEL);
-	RADIO->SHORTS = RADIO_SHORTS_READY_START_Msk;
+	syncFlag = 1;
 	
 	if ( 0 > startHFCLK() )
 		error();

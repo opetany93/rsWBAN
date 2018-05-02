@@ -167,7 +167,8 @@ static uint8_t findFreeTimeSlot()
 {
 	uint8_t freeSlot;
 
-	for(freeSlot = 0; (flagsOfConnectedSensors & (1 << freeSlot)); freeSlot++);		// searching for a free time slot
+	for(freeSlot = 0; (flagsOfConnectedSensors & (1 << freeSlot)); freeSlot++)		// searching for a free time slot
+		;
 
 	return freeSlot;
 }
@@ -175,7 +176,7 @@ static uint8_t findFreeTimeSlot()
 // =======================================================================================
 static void addSensor(uint8_t numberOfSlot)
 {
-	flagsOfConnectedSensors |= (1 << numberOfSlot);								// sensor is connected
+	flagsOfConnectedSensors |= (1 << numberOfSlot);									// sensor is connected
 	amountOfConnectedSensors++;
 
 	packets[numberOfSlot] = (data_packet_t *)malloc(sizeof(data_packet_t));
