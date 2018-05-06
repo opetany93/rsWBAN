@@ -20,8 +20,8 @@ typedef struct{
 
 	void (*sendPacket)(uint32_t *packet);
 	int8_t (*readPacket)(uint32_t *packet);
-	int8_t (*readPacketWithTimeout)(uint32_t *packet, uint16_t timeout_ms);
-	int8_t (*sendPacketWithResponse)(uint32_t *packet, uint16_t timeout_ms);
+	uint8_t (*readPacketWithTimeout)(uint32_t *packet, uint16_t timeout_ms);
+	uint8_t (*sendPacketWithResponse)(uint32_t *packet, uint16_t timeout_ms);
 	void (*disableRadio)(void);
 	uint8_t (*isRxIdleState)(void);
 	uint8_t (*checkCRC)(void);
@@ -44,6 +44,7 @@ typedef enum
 	RADIO_OK			= 0x00U,
 	RADIO_CRCError      = 0x01U,
 	RADIO_ACKError   	= 0x02U,
+	RADIO_TIMEOUTError  = 0x03U
 
 } RADIO_status_t;
 

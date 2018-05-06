@@ -16,7 +16,7 @@ int main(void)
 	
 	while(1)
 	{	
-		__WFE();						// wait for event, sleep mode
+		sleep();						// wait for event, sleep mode
 	}
 }
 

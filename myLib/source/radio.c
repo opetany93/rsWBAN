@@ -24,10 +24,10 @@ static inline void endToDisableShortcutSet(void);
 static inline void endToDisableShortcutUnset(void);
 
 static inline int8_t readPacket(uint32_t *packet);
-static inline int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms);
-static inline int8_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms);
+static inline uint8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms);
+static inline uint8_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms);
 
-volatile uint8_t timeout_flag = 0;
+static volatile uint8_t timeoutFlag = 0;
 
 /**
  * @brief Function for swapping/mirroring bits in a byte.
@@ -82,6 +82,24 @@ static uint32_t bytewise_bitswap(uint32_t inp)
 		 | (swap_bits(inp));
 }
 
+// =======================================================================================
+static inline void TIMER0_init(void)
+{
+	//set NVIC for TIMER0 which is used for timeout in function ReadPacketWithTimeout
+	NVIC_SetPriority(TIMER0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), LOW_IRQ_PRIO, TIMER0_INTERRUPT_PRIORITY));
+	NVIC_EnableIRQ(TIMER0_IRQn);
+
+	//24bit mode
+	TIMER0->BITMODE = TIMER_BITMODE_BITMODE_24Bit << TIMER_BITMODE_BITMODE_Pos;
+	//Enable interrupt for COMPARE[0]
+	TIMER0->INTENSET = TIMER_INTENSET_COMPARE0_Enabled <<  TIMER_INTENSET_COMPARE0_Pos;
+
+	TIMER0->TASKS_STOP = 1U;
+	TIMER0->TASKS_CLEAR = 1U;
+
+	TIMER0->SHORTS = TIMER_SHORTS_COMPARE0_STOP_Msk;
+}
+
 #if defined(NRF52_SENSOR)
 // =======================================================================================
 Radio* radioSensorInit(void)
@@ -125,7 +143,7 @@ Radio* radioSensorInit(void)
 	RADIO->CRCINIT = 0xFFFFUL;   // Initial value
 	RADIO->CRCPOLY = 0x11021UL;  // CRC poly: x^16+x^12^x^5+1
 
-	NVIC_SetPriority(RADIO_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), RADIO_INTERRUPT_PRIORITY, 0));
+	NVIC_SetPriority(RADIO_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), HIGH_IRQ_PRIO, RADIO_INTERRUPT_PRIORITY));
 	NVIC_EnableIRQ(RADIO_IRQn);
 
 	Radio *radio = malloc(sizeof(Radio));
@@ -146,6 +164,8 @@ Radio* radioSensorInit(void)
 	radio->readyToStartShortcutSet = readyToStartShortcutSet;
 	radio->endToDisableShortcutSet = endToDisableShortcutSet;
 	radio->endToDisableShortcutUnset = endToDisableShortcutUnset;
+
+	TIMER0_init();
 
 	return radio;
 }
@@ -253,53 +273,37 @@ static inline int8_t readPacket(uint32_t *packet)
 }
 
 // =======================================================================================
-static inline void TIMER0_init(void)
+static inline uint8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms)
 {
-	//24bit mode
-	TIMER0->BITMODE = TIMER_BITMODE_BITMODE_24Bit << TIMER_BITMODE_BITMODE_Pos;
-	//Enable interrupt for COMPARE[0]
-	TIMER0->INTENSET = TIMER_INTENSET_COMPARE0_Enabled <<  TIMER_INTENSET_COMPARE0_Pos;
-}
+	uint32_t radioStat;
 
-// =======================================================================================
-static inline void TIMER0_deinit(void)
-{
-	TIMER0->TASKS_SHUTDOWN = 1U;
-	TIMER0->INTENCLR = TIMER_INTENCLR_COMPARE0_Enabled <<  TIMER_INTENCLR_COMPARE0_Pos;
-}
-
-// =======================================================================================
-static inline int8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms)
-{
 	RADIO->PACKETPTR = (uint32_t)packet;
 	
-	TIMER0_init();
 	TIMER0->CC[0] = timeout_ms * 1000;
-	TIMER0->TASKS_START = 1U;
+	TIMER0->TASKS_CLEAR = 1U;
 	
 	//connect READY event to START task
 	RADIO->SHORTS = RADIO_SHORTS_READY_START_Msk;
-	RADIO->EVENTS_READY = 0U;
-	RADIO->EVENTS_END = 0U;
+	clearFlags();
 	RADIO->TASKS_RXEN = 1U;
+	TIMER0->TASKS_START = 1U;
 	
-	while ((0 == RADIO->EVENTS_END) && (0 == timeout_flag));
+	while ((0 == (radioStat = RADIO->EVENTS_END)) && (0 == timeoutFlag))
+		;
 	
 	RADIO->EVENTS_END = 0;
-
-	TIMER0_deinit();
 	
-	if(timeout_flag)
+	if(timeoutFlag)
 	{
-		timeout_flag = 0;
-		return -2;
+		timeoutFlag = 0;
+		return RADIO_TIMEOUTError;
 	}
-	if (RADIO->CRCSTATUS == 1U) return 0;
-	else return -1;
+	if (RADIO->CRCSTATUS == 1U) return RADIO_OK;
+	else return RADIO_CRCError;
 }
 
 // =======================================================================================
-static inline int8_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms)
+static inline uint8_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms)
 {
 	sendPacket((uint32_t *)packet);
 
@@ -330,11 +334,7 @@ static inline void disableRadio(void)
 
 inline void timeoutInterruptHandler(void)
 {
-	timeout_flag = 1;
-		
-	//timer stop
-	//TIMER0->TASKS_STOP = 1U;
-	TIMER0->TASKS_CLEAR = 1U;
+	timeoutFlag = 1;
 }
 
 static inline uint8_t isRxIdleState()

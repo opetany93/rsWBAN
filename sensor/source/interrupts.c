@@ -5,6 +5,9 @@
 #include "mydefinitions.h"
 #include "ADXL362.h"
 
+#include "nrf_gpio.h"
+#include "nrf_delay.h"
+
 #define ADXL362_ENABLE 0
 
 #if ADXL362_ENABLE
@@ -53,7 +56,11 @@ void GPIOTE_IRQHandler(void)
 	{
 		GPIOTE->EVENTS_PORT = 0U;
 		
-		if( 0 == connect() )
+		//LED_2_TOGGLE();
+
+		connect_status_t status = connect();
+
+		if( CONNECTED == status )
 		{
 #if ADXL362_ENABLE
 			adxl362spiHandle = spiInit(SPI0, SCK_PIN, MOSI_PIN, MISO_PIN, CS_PIN, SPI_FREQUENCY_FREQUENCY_M4, SPI_MODE_0, SPI_ORDER_MSB_FIRST);
@@ -71,7 +78,24 @@ void GPIOTE_IRQHandler(void)
 			}
 #endif
 
-			BUTTON_INTERRUPT_DISABLE();
+			//BUTTON_INTERRUPT_DISABLE();
+		}
+		else if(ALREADY_CONNECTED == status)
+		{
+			//set NVIC for TIMER1 which is used for timeout in function ReadPacketWithTimeout
+			NVIC_SetPriority(TIMER1_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), LOW_IRQ_PRIO, TIMER1_INTERRUPT_PRIORITY));
+			NVIC_EnableIRQ(TIMER1_IRQn);
+
+			//24bit mode
+			TIMER1->BITMODE = TIMER_BITMODE_BITMODE_24Bit << TIMER_BITMODE_BITMODE_Pos;
+			//Enable interrupt for COMPARE[0]
+			TIMER1->INTENSET = TIMER_INTENSET_COMPARE0_Enabled <<  TIMER_INTENSET_COMPARE0_Pos;
+
+			TIMER1->TASKS_STOP = 1U;
+			TIMER1->TASKS_CLEAR = 1U;
+
+			TIMER1->CC[0] = 2000 * 1000;
+			TIMER1->TASKS_START = 1U;
 		}
 	}
 }
@@ -84,5 +108,22 @@ void TIMER0_IRQHandler(void)
 		TIMER0->EVENTS_COMPARE[0] = 0U;
 		
 		timeoutInterruptHandler();
+	}
+}
+
+// =======================================================================================
+void TIMER1_IRQHandler(void)
+{
+	if(TIMER1->EVENTS_COMPARE[0])
+	{
+		TIMER1->EVENTS_COMPARE[0] = 0U;
+
+		TIMER1->TASKS_STOP = 1U;
+
+		if(0 == nrf_gpio_pin_read(BUTTON))
+		{
+			deInitProtocol();
+			SYSTEM_OFF();
+		}
 	}
 }

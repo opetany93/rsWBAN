@@ -18,11 +18,11 @@ static void PPI_Init();
 static void RTC0_Init(uint32_t valueOfCC0, uint32_t valueOfCC1);
 static uint8_t waitForSync(uint16_t ms);
 
-static volatile uint8_t syncFlag;
+static volatile uint8_t syncFlag, connectedFlag = 0;
 
 Radio *radio = NULL;
 
-__weak void timeSlotCallback()
+__WEAK void timeSlotCallback()
 {
 
 }
@@ -33,51 +33,80 @@ void initProtocol(Radio *radioDrv)
 	radio = radioDrv;
 }
 
-// =======================================================================================
-int8_t connect(void)
+//=======================================================================================
+void deInitProtocol()
 {
-	uint8_t readSuccess = 3;
+	connectedFlag = 0;
+}
 
-	startHFCLK();
-	((data_packet_t *)packet)->payloadSize = 1;
-	((data_packet_t *)packet)->type = PACKET_init;
+// =======================================================================================
+connect_status_t connect(void)
+{
+	connect_status_t connectStatus = DISCONNECTED;
+	RADIO_status_t responseStatus = 4;
 
-	radio->setChannel(ADVERTISEMENT_CHANNEL); 						// Frequency bin 30, 2430MHz
-
-	for(uint8_t i = 0; (i < ATTEMPTS_OF_CONNECT) && (0 !=  readSuccess); i++)
+	if(!connectedFlag)
 	{
-		readSuccess = radio->sendPacketWithResponse((uint32_t *)packet, 1);
-		radio->disableRadio();
-	}
+		startHFCLK();
+		((data_packet_t *)packet)->payloadSize = 1;
+		((data_packet_t *)packet)->packetType = PACKET_init;
 
-	if(0 == readSuccess)
-	{
-		channel = ((init_packet_t *)packet)->channel;
+		radio->setChannel(ADVERTISEMENT_CHANNEL); 						// Frequency bin 30, 2430MHz
 
-		PPI_Init();
-		RTC0_Init(((init_packet_t *)packet)->rtc_val_CC0, ((init_packet_t *)packet)->rtc_val_CC1);
-
-		if(waitForSync(200))
+		for(uint8_t i = 0; (i < ATTEMPTS_OF_CONNECT) && (0 !=  responseStatus); i++)
 		{
-			radio->setChannel(channel);
-			RTC0->TASKS_CLEAR = 1U;
-			RTC0->TASKS_START = 1U;
-			radio->setPacketPtr((uint32_t)packet);
-			radio->endInterruptEnable();
-			radio->readyToStartShortcutSet();
-			radio->endToDisableShortcutSet();
+			responseStatus = radio->sendPacketWithResponse((uint32_t *)packet, 15);
+			radio->disableRadio();
+
+			if(RADIO_OK == responseStatus)
+			{
+				if(PACKET_init == ((init_packet_t *)packet)->packetType)
+				{
+					connectStatus = CONNECTED;
+				}
+				else
+				{
+					connectStatus = WRONG_PACKET_TYPE;
+				}
+			}
+		}
+
+		if(CONNECTED == connectStatus)
+		{
+			channel = ((init_packet_t *)packet)->channel;
+			connectedFlag = 1;
+
+			PPI_Init();
+			RTC0_Init(((init_packet_t *)packet)->rtc_val_CC0, ((init_packet_t *)packet)->rtc_val_CC1);
+
+			if(waitForSync(200))
+			{
+				radio->setChannel(channel);
+				RTC0->TASKS_CLEAR = 1U;
+				RTC0->TASKS_START = 1U;
+				radio->setPacketPtr((uint32_t)packet);
+				radio->endInterruptEnable();
+				radio->readyToStartShortcutSet();
+				radio->endToDisableShortcutSet();
+			}
+			else
+			{
+				error();
+			}
 		}
 		else
 		{
-			error();
+			connectStatus = DISCONNECTED;
+			stopHFCLK();
+			sleep();
 		}
+
+		return connectStatus;
 	}
 	else
 	{
-		stopHFCLK();
+		return ALREADY_CONNECTED;
 	}
-
-	return readSuccess;
 }
 
 //=======================================================================================
@@ -105,7 +134,7 @@ static void RTC0_Init(uint32_t valueOfCC0, uint32_t valueOfCC1)
 	RTC0->INTENSET = RTC_INTENSET_COMPARE0_Enabled << RTC_INTENSET_COMPARE0_Pos;
 	RTC0->INTENSET = RTC_INTENSET_COMPARE1_Enabled << RTC_INTENSET_COMPARE1_Pos;
 
-	NVIC_SetPriority(RTC0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), RTC0_INTERRUPT_PRIORITY, 0));
+	NVIC_SetPriority(RTC0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), HIGH_IRQ_PRIO, RTC0_INTERRUPT_PRIORITY));
 	NVIC_EnableIRQ(RTC0_IRQn);
 }
 
@@ -115,7 +144,7 @@ static uint8_t waitForSync(uint16_t ms)
 	radio->setChannel(SYNC_CHANNEL);
 
 	if(RADIO_OK == radio->readPacketWithTimeout((uint32_t *)packet, ms))
-		return (SYNC == ((sync_packet_t *)packet)->sync);
+		return (PACKET_sync == ((sync_packet_t *)packet)->packetType);
 	else
 		return FALSE;
 }
@@ -129,7 +158,7 @@ inline void radioSensorHandler()
 
 		if(radio->checkCRC())
 		{
-			if(SYNC == ((sync_packet_t *)packet)->sync)
+			if(PACKET_sync == ((sync_packet_t *)packet)->packetType)
 			{
 				RTC0->TASKS_CLEAR = 1U;
 
@@ -140,7 +169,7 @@ inline void radioSensorHandler()
 			else
 			{
 				RTC0->TASKS_CLEAR = 1U;									// sync, but data was not properly readed
-				radioRxStatus = RADIO_ACKError;
+				radioRxStatus = RADIO_ACKError;							// TODO zmienic na wrong type of packet
 			}
 		}
 		else
@@ -155,7 +184,7 @@ inline void radioSensorHandler()
 inline void timeSlotHandler()
 {
 	((data_packet_t *)packet)->payloadSize = packetLength - 1;
-	((data_packet_t *)packet)->type = PACKET_data;
+	((data_packet_t *)packet)->packetType = PACKET_data;
 	((data_packet_t *)packet)->channel = channel;
 	
 	timeSlotCallback();

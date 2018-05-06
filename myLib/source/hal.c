@@ -12,6 +12,11 @@
 #include <stdio.h>
 #include "uart.h"
 
+#define NRF52_ONRAM1_OFFRAM0    POWER_RAM_POWER_S0POWER_On 	    << POWER_RAM_POWER_S0POWER_Pos      \
+							  | POWER_RAM_POWER_S1POWER_On      << POWER_RAM_POWER_S1POWER_Pos      \
+							  | POWER_RAM_POWER_S0RETENTION_Off << POWER_RAM_POWER_S0RETENTION_Pos  \
+	                          | POWER_RAM_POWER_S1RETENTION_Off << POWER_RAM_POWER_S1RETENTION_Pos;
+
 void error(void)
 {
 	while(1)
@@ -64,7 +69,7 @@ static void initGpio()
 
 void boardInit(void)
 {
-	NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_3);			// preemption 3 bits, subpriority 1 bit
+	NVIC_SetPriorityGrouping(7 - PREEMPTION_PRIORITY_BITS);
 	
 	initGpio();
 
@@ -77,9 +82,17 @@ void boardInit(void)
 		error();
 	}
 	
-	//set NVIC for TIMER0 which is used for timeout in function ReadPacketWithTimeout
-	NVIC_SetPriority(TIMER0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), TIMER0_INTERRUPT_PRIORITY, 0));
-	NVIC_EnableIRQ(TIMER0_IRQn);
+//	NRF_POWER->RAM[0].POWER = NRF52_ONRAM1_OFFRAM0;
+//	NRF_POWER->RAM[1].POWER = NRF52_ONRAM1_OFFRAM0;
+//	NRF_POWER->RAM[2].POWER = NRF52_ONRAM1_OFFRAM0;
+//	NRF_POWER->RAM[3].POWER = NRF52_ONRAM1_OFFRAM0;
+//	NRF_POWER->RAM[4].POWER = NRF52_ONRAM1_OFFRAM0;
+//	NRF_POWER->RAM[5].POWER = NRF52_ONRAM1_OFFRAM0;
+//	NRF_POWER->RAM[6].POWER = NRF52_ONRAM1_OFFRAM0;
+//	NRF_POWER->RAM[7].POWER = NRF52_ONRAM1_OFFRAM0;
+//
+//	NRF_POWER->RESETREAS = POWER_RESETREAS_OFF_Msk;
+
 }
 
 //===================================================================================
@@ -89,7 +102,7 @@ void buttonInterruptInit(void)
 	nrf_gpio_cfg_sense_input(BUTTON, NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_LOW);
 	BUTTON_INTERRUPT_ENABLE();										// enable interrupt from PORT EVENT
 	
-	NVIC_SetPriority(GPIOTE_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), GPIOTE_INTERRUPT_PRIORITY, 0));									// set and enable NVIC for button interrupt
+	NVIC_SetPriority(GPIOTE_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), LOW_IRQ_PRIO, GPIOTE_INTERRUPT_PRIORITY));									// set and enable NVIC for button interrupt
 	NVIC_EnableIRQ(GPIOTE_IRQn);
 }
 
@@ -127,4 +140,9 @@ inline void gpioGeneratePulse(uint8_t pin)
 {
 	NRF_GPIO->OUTSET = (1 << pin);
 	NRF_GPIO->OUTCLR = (1 << pin);
+}
+
+inline void sleep()
+{
+	__WFE();						// wait for event, sleep mode
 }

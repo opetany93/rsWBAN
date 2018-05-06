@@ -45,7 +45,7 @@ static void addSensor(uint8_t numberOfSlot);
 static void changeRadioSlotChannel(uint8_t channel);
 
 // =======================================================================================
-__weak void dataReadyCallback(data_packet_t** packets, uint8_t amountOfConnectedSensors)
+__WEAK void dataReadyCallback(data_packet_t** packets, uint8_t amountOfConnectedSensors)
 {
 
 }
@@ -143,12 +143,12 @@ inline void radioHostHandler()
 		
 		if(radio->checkCRC())
 		{
-			if(PACKET_data == packet_ptr->type)
+			if(PACKET_data == packet_ptr->packetType)
 			{
 				memcpy((void*)packets[packet_ptr->channel], packet, sizeof(data_packet_t));
 			}
 			
-			else if(PACKET_init == packet_ptr->type)
+			else if(PACKET_init == packet_ptr->packetType)
 			{
 				uint8_t freeSlot = findFreeTimeSlot();
 				
@@ -187,7 +187,7 @@ static void prepareInitPacket(uint8_t numberOfSlot)
 {
 	((init_packet_t *)packet)->channel = numberOfSlot;							// przypisanie id sensora
 	((init_packet_t *)packet)->payloadSize = 8;
-	((init_packet_t *)packet)->ack = ACK;
+	((init_packet_t *)packet)->packetType = PACKET_init;
 	((init_packet_t *)packet)->rtc_val_CC0 = rtc_val_CC0_base * ( (2 * (numberOfSlot + 1)) - 1);
 	((init_packet_t *)packet)->rtc_val_CC1 = rtc_val_CC1;
 }
@@ -215,7 +215,7 @@ inline void syncTransmitHandler()
 static inline void prepareSyncPacket()
 {
 	((sync_packet_t *)packet)->payloadSize = sizeof(sync_packet_t) - 1;
-	((sync_packet_t *)packet)->sync = SYNC;
+	((sync_packet_t *)packet)->packetType = PACKET_sync;
 	((sync_packet_t *)packet)->rtc_val_CC0 = 0;
 	((sync_packet_t *)packet)->rtc_val_CC1 = 0;
 

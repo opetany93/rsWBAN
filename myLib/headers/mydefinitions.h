@@ -39,10 +39,11 @@
 
 
 	// ============================== Priorities of interrupts ===========================================
-	#define RTC0_INTERRUPT_PRIORITY			0x02
-	#define RADIO_INTERRUPT_PRIORITY		0x04
-	#define TIMER0_INTERRUPT_PRIORITY		0x08
-	#define GPIOTE_INTERRUPT_PRIORITY		0x10
+	#define RTC0_INTERRUPT_PRIORITY			1
+	#define RADIO_INTERRUPT_PRIORITY		2
+	#define TIMER0_INTERRUPT_PRIORITY		3
+	#define GPIOTE_INTERRUPT_PRIORITY		4
+	#define TIMER1_INTERRUPT_PRIORITY		5
 
 #elif defined(BOARD_PCA10040)
 
