@@ -82,11 +82,12 @@ static uint32_t bytewise_bitswap(uint32_t inp)
 		 | (swap_bits(inp));
 }
 
+#if defined(NRF52_SENSOR)
 // =======================================================================================
 static inline void TIMER0_init(void)
 {
 	//set NVIC for TIMER0 which is used for timeout in function ReadPacketWithTimeout
-	NVIC_SetPriority(TIMER0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), LOW_IRQ_PRIO, TIMER0_INTERRUPT_PRIORITY));
+	NVIC_SetPriority(TIMER0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), MIDDLE_IRQ_PRIO, TIMER0_INTERRUPT_PRIORITY));
 	NVIC_EnableIRQ(TIMER0_IRQn);
 
 	//24bit mode
@@ -100,7 +101,6 @@ static inline void TIMER0_init(void)
 	TIMER0->SHORTS = TIMER_SHORTS_COMPARE0_STOP_Msk;
 }
 
-#if defined(NRF52_SENSOR)
 // =======================================================================================
 Radio* radioSensorInit(void)
 {
@@ -275,8 +275,6 @@ static inline int8_t readPacket(uint32_t *packet)
 // =======================================================================================
 static inline uint8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms)
 {
-	uint32_t radioStat;
-
 	RADIO->PACKETPTR = (uint32_t)packet;
 	
 	TIMER0->CC[0] = timeout_ms * 1000;
@@ -288,7 +286,7 @@ static inline uint8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_m
 	RADIO->TASKS_RXEN = 1U;
 	TIMER0->TASKS_START = 1U;
 	
-	while ((0 == (radioStat = RADIO->EVENTS_END)) && (0 == timeoutFlag))
+	while ((0 == RADIO->EVENTS_END) && (0 == timeoutFlag))
 		;
 	
 	RADIO->EVENTS_END = 0;
@@ -335,6 +333,7 @@ static inline void disableRadio(void)
 inline void timeoutInterruptHandler(void)
 {
 	timeoutFlag = 1;
+	TIMER1->TASKS_STOP = 1U;
 }
 
 static inline uint8_t isRxIdleState()

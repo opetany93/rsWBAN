@@ -13,12 +13,13 @@ int main(void)
 	Radio *radio = radioSensorInit();
 	buttonInterruptInit();
 	initProtocol(radio);
-	
+
 	while(1)
-	{	
-		sleep();						// wait for event, sleep mode
+	{
+		sleep();
 	}
 }
+
 
 
 void timeSlotCallback()

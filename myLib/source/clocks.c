@@ -49,20 +49,20 @@ inline void stopHFCLK()
 	CLOCK->TASKS_HFCLKSTOP = 1U;
 
 	while ( !isHFCLKstopped() )
-		;
+		CLOCK->TASKS_HFCLKSTOP = 1U;
 }
 
 uint8_t isHFCLKstopped()
 {
-	uint32_t stat = (uint32_t)(CLOCK_HFCLKSTAT_STATE_NotRunning << CLOCK_HFCLKSTAT_STATE_Pos) | (CLOCK_HFCLKSTAT_SRC_Xtal << CLOCK_HFCLKSTAT_SRC_Pos);
+	uint32_t stat = (uint32_t)(CLOCK_HFCLKSTAT_STATE_Running << CLOCK_HFCLKSTAT_STATE_Pos) | (CLOCK_HFCLKSTAT_SRC_Xtal << CLOCK_HFCLKSTAT_SRC_Pos);
 
-	if ( CLOCK->HFCLKSTAT == stat )
+	if ( CLOCK->HFCLKSTAT & stat )
 	{
-		return TRUE;
+		return FALSE;
 	}
 	else
 	{
-		return FALSE;
+		return TRUE;
 	}
 }
 

@@ -1,5 +1,5 @@
 #include "radio.h"
-#include "protocol.h"
+#include "../../protocol/inc/protocol.h"
 #include "LPS22HB.h"
 #include "spi.h"
 #include "mydefinitions.h"
@@ -52,13 +52,11 @@ static void spiControlChipSelectADXL362Interface(uint8_t state){ spiControlChipS
 // =======================================================================================
 void GPIOTE_IRQHandler(void)
 {
-	if(GPIOTE->EVENTS_PORT)
+	if(GPIOTE->EVENTS_IN[0])
 	{
-		GPIOTE->EVENTS_PORT = 0U;
-		
-		//LED_2_TOGGLE();
+		GPIOTE->EVENTS_IN[0] = 0U;
 
-		connect_status_t status = connect();
+		protocol_status_t status = connect();
 
 		if( CONNECTED == status )
 		{
@@ -96,6 +94,8 @@ void GPIOTE_IRQHandler(void)
 
 			TIMER1->CC[0] = 2000 * 1000;
 			TIMER1->TASKS_START = 1U;
+
+			// TODO: opakuj powy¿sze w funkcjê
 		}
 	}
 }
@@ -123,7 +123,6 @@ void TIMER1_IRQHandler(void)
 		if(0 == nrf_gpio_pin_read(BUTTON))
 		{
 			deInitProtocol();
-			SYSTEM_OFF();
 		}
 	}
 }

@@ -38,17 +38,11 @@ void RTC0_IRQHandler()
 		RTC0->EVENTS_COMPARE[0] = 0;
 
 		startTimeSlotListener();
-
-		NRF_GPIO->OUTSET = (1 << ARDUINO_1_PIN);
-		NRF_GPIO->OUTCLR = (1 << ARDUINO_1_PIN);
 	}
 
 	if (RTC0->EVENTS_COMPARE[1])					// SYNC start
 	{
 		RTC0->EVENTS_COMPARE[1] = 0;
-
-		NRF_GPIO->OUTSET = (1 << ARDUINO_0_PIN);
-		NRF_GPIO->OUTCLR = (1 << ARDUINO_0_PIN);
 
 		syncTransmitHandler();
 	}

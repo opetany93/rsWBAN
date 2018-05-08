@@ -1,4 +1,4 @@
-# ARO nRF52 makefile v0.1
+# ARO nRF52 makefile v0.1.2
 
 PROJECT_NAME     := rsWBAN-sensor
 TARGETS          := nrf52832_xxaa
@@ -31,7 +31,7 @@ ifeq ($(PLATFORM), NRF52_HOST)
 	CFLAGS += -DCONFIG_GPIO_AS_PINRESET
 	
 	SRC_FILES += \
-		$(wildcard $(abspath ../../source/*.c)) \
+		$(wildcard $(abspath ../source/*.c)) \
     	$(SDK_ROOT)/components/boards/boards.c
     	
 else ifeq ($(PLATFORM), NRF52_SENSOR)
@@ -43,13 +43,18 @@ else ifeq ($(PLATFORM), NRF52_SENSOR)
   		$(abspath ../../myLib/source/hal.c) \
   		$(abspath ../../myLib/source/radio.c) \
   		$(abspath ../../myLib/source/spi.c) \
+  		$(wildcard $(abspath ../../myLib/protocol/src/*.c)) \
+  		$(wildcard $(abspath ../protocol/src/*.c)) \
   		$(abspath ../../myLib/drivers/src/ADXL362.c)
+  		
+  	INC_FOLDERS += $(abspath ../protocol/inc)	
   		
 endif
   
 # Include folders common to all targets
 INC_FOLDERS += \
   $(abspath ../include) \
+  $(abspath ../../myLib/protocol/inc) \
   $(abspath ../../myLib/headers) \
   $(abspath ../../myLib/drivers/inc) \
   $(SDK_ROOT)/components \

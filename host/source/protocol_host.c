@@ -14,8 +14,8 @@
 
 char packet[PACKET_SIZE];
 
-volatile data_packet_t *packet_ptr = (data_packet_t *)packet;
-volatile data_packet_t *packets[4];
+volatile data_packet_t* packet_ptr = (data_packet_t *)packet;
+volatile data_packet_t* packets[4];
 
 volatile uint8_t flagsOfConnectedSensors = 0;
 volatile uint8_t amountOfConnectedSensors = 0;
@@ -26,7 +26,7 @@ volatile uint32_t rtc_val_CC0_base;
 volatile uint32_t rtc_val_CC1;
 
 volatile uint8_t packetLength = 30;
-volatile uint8_t txPower = 1, turnOff = 0;
+volatile uint8_t txPower = 1, turnOff = 0, approvals = 0;
 
 ADXL362_AXES_t axis;
 
@@ -42,6 +42,7 @@ static void prepareSyncPacket();
 static void prepareInitPacket(uint8_t numberOfSlot);
 static uint8_t findFreeTimeSlot();
 static void addSensor(uint8_t numberOfSlot);
+static void removeSensor(uint8_t numberOfSlot);
 static void changeRadioSlotChannel(uint8_t channel);
 
 // =======================================================================================
@@ -146,6 +147,12 @@ inline void radioHostHandler()
 			if(PACKET_data == packet_ptr->packetType)
 			{
 				memcpy((void*)packets[packet_ptr->channel], packet, sizeof(data_packet_t));
+
+				if(1 == packet_ptr->disconnect)
+				{
+					removeSensor(packet_ptr->channel);
+					approvals |= (1 << packet_ptr->channel);
+				}
 			}
 			
 			else if(PACKET_init == packet_ptr->packetType)
@@ -183,6 +190,15 @@ static void addSensor(uint8_t numberOfSlot)
 }
 
 // =======================================================================================
+static void removeSensor(uint8_t numberOfSlot)
+{
+	flagsOfConnectedSensors &= ~(1 << numberOfSlot);
+	amountOfConnectedSensors--;
+
+	free((data_packet_t*)packets[numberOfSlot]);
+}
+
+// =======================================================================================
 static void prepareInitPacket(uint8_t numberOfSlot)
 {
 	((init_packet_t *)packet)->channel = numberOfSlot;							// przypisanie id sensora
@@ -201,12 +217,14 @@ inline void syncTransmitHandler()
 	
 	prepareSyncPacket();
 
-	gpioGeneratePulse(ARDUINO_0_PIN);
+	nrf_gpio_pin_toggle(ARDUINO_0_PIN);
 
 	radio->sendPacket((uint32_t *)packet);							// send sync packet
 	radio->disableRadio();
 	radio->clearFlags();
 	radio->endInterruptEnable();
+
+	approvals = 0;
 
 	dataReadyCallback((data_packet_t**)packets, amountOfConnectedSensors);
 }
@@ -219,6 +237,7 @@ static inline void prepareSyncPacket()
 	((sync_packet_t *)packet)->rtc_val_CC0 = 0;
 	((sync_packet_t *)packet)->rtc_val_CC1 = 0;
 
+	((sync_packet_t *)packet)->approvals = approvals;
 	((sync_packet_t *)packet)->txPower = txPower;
 	((sync_packet_t *)packet)->turnOff = turnOff;
 }
@@ -239,10 +258,13 @@ inline void timeSlotListenerHandler()
 	if ( flagsOfConnectedSensors & (1 << channel) )
 	{
 		changeRadioSlotChannel(channel);
+		nrf_gpio_pin_toggle(ARDUINO_1_PIN);
+
 	}
 	else if( channel != ADVERTISEMENT_CHANNEL )
 	{
 		changeRadioSlotChannel(ADVERTISEMENT_CHANNEL);
+		nrf_gpio_pin_toggle(ARDUINO_2_PIN);
 	}
 
 	channel++;
@@ -255,8 +277,6 @@ static void changeRadioSlotChannel(uint8_t channel)
 	radio->setChannel(channel);
 	radio->clearFlags();
 	radio->rxEnable();								// Enable radio and wait for ready
-
-	gpioGeneratePulse(ARDUINO_1_PIN);
 }
 
 // =======================================================================================

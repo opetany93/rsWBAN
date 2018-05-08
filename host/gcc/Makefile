@@ -1,3 +1,5 @@
+# ARO nRF52 makefile v0.1.2
+
 PROJECT_NAME     := rsWBAN-host
 TARGETS          := nrf52832_xxaa
 OUTPUT_DIRECTORY := _build
@@ -11,8 +13,6 @@ CFLAGS += -DNRF52832_XXAA
 CFLAGS += -DNRF52_PAN_74
 
 SDK_ROOT:= C:/nRF52/gnu_gcc_environment/SDKs/nRF5_SDK_14.1.0
-PROJ_DIR := E:/nRF52/rsWBAN_Project/host
-MYLIB_DIR := E:/nRF52/rsWBAN_Project/myLib
 
 $(OUTPUT_DIRECTORY)/nrf52832_xxaa.out: \
   LINKER_SCRIPT  := gcc_nrf52.ld
@@ -21,8 +21,8 @@ $(OUTPUT_DIRECTORY)/nrf52832_xxaa.out: \
 SRC_FILES += \
   $(SDK_ROOT)/components/toolchain/gcc/gcc_startup_nrf52.S \
   $(SDK_ROOT)/components/toolchain/system_nrf52.c \
-  $(wildcard $(PROJ_DIR)/source/*.c) 
-
+  $(wildcard $(abspath ../source/*.c)) 
+  
 ifeq ($(PLATFORM), NRF52_HOST)
 
 	CFLAGS += -DNRF52_HOST
@@ -31,7 +31,7 @@ ifeq ($(PLATFORM), NRF52_HOST)
 	CFLAGS += -DCONFIG_GPIO_AS_PINRESET
 	
 	SRC_FILES += \
-		$(wildcard $(MYLIB_DIR)/source/*.c) \
+		$(wildcard $(abspath ../../myLib/source/*.c)) \
     	$(SDK_ROOT)/components/boards/boards.c
     	
 else ifeq ($(PLATFORM), NRF52_SENSOR)
@@ -39,19 +39,24 @@ else ifeq ($(PLATFORM), NRF52_SENSOR)
 	CFLAGS += -DNRF52_SENSOR
 	
 	SRC_FILES += \
-    	$(MYLIB_DIR)/source/clocks.c \
-  		$(MYLIB_DIR)/source/hal.c \
-  		$(MYLIB_DIR)/source/radio.c \
-  		$(MYLIB_DIR)/source/spi.c \
-  		$(MYLIB_DIR)/drivers/src/ADXL362.c
+    	$(abspath ../../myLib/source/clocks.c) \
+  		$(abspath ../../myLib/source/hal.c) \
+  		$(abspath ../../myLib/source/radio.c) \
+  		$(abspath ../../myLib/source/spi.c) \
+  		$(wildcard $(abspath ../../myLib/protocol/src/*.c)) \
+  		$(wildcard $(abspath ../protocol/src/*.c)) \
+  		$(abspath ../../myLib/drivers/src/ADXL362.c)
+  		
+  	INC_FOLDERS += $(abspath ../protocol/inc)	
   		
 endif
   
 # Include folders common to all targets
 INC_FOLDERS += \
-  $(PROJ_DIR)/include \
-  $(MYLIB_DIR)/headers\
-  $(MYLIB_DIR)/drivers/inc\
+  $(abspath ../include) \
+  $(abspath ../../myLib/protocol/inc) \
+  $(abspath ../../myLib/headers) \
+  $(abspath ../../myLib/drivers/inc) \
   $(SDK_ROOT)/components \
   $(SDK_ROOT)/components/toolchain \
   $(SDK_ROOT)/components/libraries/util \
@@ -60,7 +65,6 @@ INC_FOLDERS += \
   $(SDK_ROOT)/components/drivers_nrf/nrf_soc_nosd \
   $(SDK_ROOT)/config \
   $(SDK_ROOT)/components/device \
-  $(SDK_ROOT)/components/boards \
   $(SDK_ROOT)/components/drivers_nrf/delay \
   $(SDK_ROOT)/components/toolchain/cmsis/include \
   $(SDK_ROOT)/components/drivers_nrf/hal \
@@ -91,7 +95,6 @@ ASMFLAGS += -g3
 ASMFLAGS += -mcpu=cortex-m4
 ASMFLAGS += -mthumb -mabi=aapcs
 ASMFLAGS += -mfloat-abi=hard -mfpu=fpv4-sp-d16
-ASMFLAGS += -DBOARD_PCA10040
 ASMFLAGS += -DBSP_DEFINES_ONLY
 ASMFLAGS += -DCONFIG_GPIO_AS_PINRESET
 ASMFLAGS += -DNRF52
@@ -109,17 +112,15 @@ LDFLAGS += -Wl,--gc-sections
 # use newlib in nano version
 LDFLAGS += --specs=nano.specs
 
-
 # Add standard libraries at the very end of the linker input, after all objects
 # that may need symbols provided by these libraries.
 LIB_FILES += -lc -lnosys -lm
-
 
 .PHONY: default help
 
 # Default target - first one defined
 default: nrf52832_xxaa
-
+	
 # Print all targets that can be built
 help:
 	@echo following targets are available:
@@ -128,7 +129,6 @@ help:
 	@echo		flash      - flashing binary
 
 TEMPLATE_PATH := $(SDK_ROOT)/components/toolchain/gcc
-
 
 include $(TEMPLATE_PATH)/Makefile.common
 

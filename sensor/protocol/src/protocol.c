@@ -7,20 +7,20 @@
 
 #include <stddef.h>
 
-#define ATTEMPTS_OF_CONNECT		100
+#define ATTEMPTS_OF_CONNECT		20
 
 char packet[PACKET_SIZE];
-volatile uint8_t channel, radioRxStatus;
-volatile uint8_t packetLength = 24;
+volatile uint8_t channel, packetLength = 24, syncFlag, connectedFlag = 0;
 
-// internal functions
+Radio *radio = NULL;
+
+// --------------- internal functions -------------
 static void PPI_Init();
 static void RTC0_Init(uint32_t valueOfCC0, uint32_t valueOfCC1);
 static uint8_t waitForSync(uint16_t ms);
-
-static volatile uint8_t syncFlag, connectedFlag = 0;
-
-Radio *radio = NULL;
+static inline uint8_t isPacketInit(char* packetPtr);
+static inline uint8_t isPacketSync(char* packetPtr);
+// -------------------------------------------------
 
 __WEAK void timeSlotCallback()
 {
@@ -36,13 +36,15 @@ void initProtocol(Radio *radioDrv)
 //=======================================================================================
 void deInitProtocol()
 {
+	LED_2_OFF();
+	radio->disableRadio();
 	connectedFlag = 0;
 }
 
 // =======================================================================================
-connect_status_t connect(void)
+protocol_status_t connect(void)
 {
-	connect_status_t connectStatus = DISCONNECTED;
+	protocol_status_t connectStatus = DISCONNECTED;
 	RADIO_status_t responseStatus = 4;
 
 	if(!connectedFlag)
@@ -53,14 +55,14 @@ connect_status_t connect(void)
 
 		radio->setChannel(ADVERTISEMENT_CHANNEL); 						// Frequency bin 30, 2430MHz
 
-		for(uint8_t i = 0; (i < ATTEMPTS_OF_CONNECT) && (0 !=  responseStatus); i++)
+		for(uint8_t i = 0; (i < ATTEMPTS_OF_CONNECT) && (RADIO_OK !=  responseStatus); i++)
 		{
 			responseStatus = radio->sendPacketWithResponse((uint32_t *)packet, 15);
 			radio->disableRadio();
 
 			if(RADIO_OK == responseStatus)
 			{
-				if(PACKET_init == ((init_packet_t *)packet)->packetType)
+				if(isPacketInit(packet))
 				{
 					connectStatus = CONNECTED;
 				}
@@ -98,7 +100,6 @@ connect_status_t connect(void)
 		{
 			connectStatus = DISCONNECTED;
 			stopHFCLK();
-			sleep();
 		}
 
 		return connectStatus;
@@ -144,7 +145,7 @@ static uint8_t waitForSync(uint16_t ms)
 	radio->setChannel(SYNC_CHANNEL);
 
 	if(RADIO_OK == radio->readPacketWithTimeout((uint32_t *)packet, ms))
-		return (PACKET_sync == ((sync_packet_t *)packet)->packetType);
+		return isPacketSync(packet);
 	else
 		return FALSE;
 }
@@ -158,24 +159,24 @@ inline void radioSensorHandler()
 
 		if(radio->checkCRC())
 		{
-			if(PACKET_sync == ((sync_packet_t *)packet)->packetType)
+			if(isPacketSync(packet))
 			{
+				if(((sync_packet_t*)packet)->approvals & (1 << channel))
+				{
+					SYSTEM_OFF();
+				}
+
 				RTC0->TASKS_CLEAR = 1U;
-
 				radio->setChannel(channel);
-
-				radioRxStatus = RADIO_OK;
 			}
 			else
 			{
-				RTC0->TASKS_CLEAR = 1U;									// sync, but data was not properly readed
-				radioRxStatus = RADIO_ACKError;							// TODO zmienic na wrong type of packet
+				RTC0->TASKS_CLEAR = 1U;							// sync, but data was not properly readed
 			}
 		}
 		else
 		{
-			RTC0->TASKS_CLEAR = 1U;										// sync, but data was not properly readed
-			radioRxStatus = RADIO_CRCError;
+			RTC0->TASKS_CLEAR = 1U;								// sync, but data was not properly readed
 		}
 	}
 }
@@ -183,14 +184,20 @@ inline void radioSensorHandler()
 //=======================================================================================
 inline void timeSlotHandler()
 {
-	((data_packet_t *)packet)->payloadSize = packetLength - 1;
+	((data_packet_t *)packet)->payloadSize = sizeof(data_packet_t) - 1;
 	((data_packet_t *)packet)->packetType = PACKET_data;
 	((data_packet_t *)packet)->channel = channel;
+	((data_packet_t *)packet)->numberOfPacket++;
 	
 	timeSlotCallback();
 
 	while ( !isHFCLKstable() )				// wait for stable HCLK which has been started via RTC0 event through PPI
 		;
+
+	if(!connectedFlag)
+	{
+		((data_packet_t *)packet)->disconnect = 1;
+	}
 
 	radio->txEnable();
 
@@ -213,3 +220,12 @@ inline void syncHandler()
 	LED_2_TOGGLE();
 }
 
+static inline uint8_t isPacketInit(char* packetPtr)
+{
+	return PACKET_init == ((init_packet_t *)packetPtr)->packetType;
+}
+
+static inline uint8_t isPacketSync(char* packetPtr)
+{
+	return PACKET_sync == ((sync_packet_t *)packet)->packetType;
+}

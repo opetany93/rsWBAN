@@ -29,11 +29,11 @@ void error(void)
 static void initGpio()
 {
 #if defined(NRF52_SENSOR)
-	nrf_gpio_cfg_output(LED_1);
+	//nrf_gpio_cfg_output(LED_1);
 	nrf_gpio_cfg_output(LED_2);
-	nrf_gpio_cfg_output(SCL_PIN);
+	//nrf_gpio_cfg_output(SCL_PIN);
 
-	nrf_gpio_pin_set(LED_1);
+	//nrf_gpio_pin_set(LED_1);
 	nrf_gpio_pin_set(LED_2);
 
 #elif defined(BOARD_PCA10040)
@@ -44,6 +44,8 @@ static void initGpio()
 
 	nrf_gpio_cfg_output(ARDUINO_0_PIN);
 	nrf_gpio_cfg_output(ARDUINO_1_PIN);
+	nrf_gpio_cfg_output(ARDUINO_2_PIN);
+
 	nrf_gpio_cfg_output(31);
 
 	nrf_gpio_pin_set(LED_1);
@@ -52,12 +54,10 @@ static void initGpio()
 	nrf_gpio_pin_set(LED_4);
 
 	//buttons
-	nrf_gpio_cfg_input(BUTTON_1, NRF_GPIO_PIN_PULLUP);
-	nrf_gpio_cfg_input(BUTTON_2, NRF_GPIO_PIN_PULLUP);
-	nrf_gpio_cfg_input(BUTTON_3, NRF_GPIO_PIN_PULLUP);
-	nrf_gpio_cfg_input(BUTTON_4, NRF_GPIO_PIN_PULLUP);
-
-	nrf_gpio_cfg_output(ARDUINO_1_PIN); // for measurement
+//	nrf_gpio_cfg_input(BUTTON_1, NRF_GPIO_PIN_PULLUP);
+//	nrf_gpio_cfg_input(BUTTON_2, NRF_GPIO_PIN_PULLUP);
+//	nrf_gpio_cfg_input(BUTTON_3, NRF_GPIO_PIN_PULLUP);
+//	nrf_gpio_cfg_input(BUTTON_4, NRF_GPIO_PIN_PULLUP);
 #endif
 }
 
@@ -79,20 +79,17 @@ void boardInit(void)
 	
 	if ( 0 > startLFCLK() )					// start 32,768 kHz oscillator
 	{
-		error();
+		//error();
 	}
 	
-//	NRF_POWER->RAM[0].POWER = NRF52_ONRAM1_OFFRAM0;
-//	NRF_POWER->RAM[1].POWER = NRF52_ONRAM1_OFFRAM0;
-//	NRF_POWER->RAM[2].POWER = NRF52_ONRAM1_OFFRAM0;
-//	NRF_POWER->RAM[3].POWER = NRF52_ONRAM1_OFFRAM0;
-//	NRF_POWER->RAM[4].POWER = NRF52_ONRAM1_OFFRAM0;
-//	NRF_POWER->RAM[5].POWER = NRF52_ONRAM1_OFFRAM0;
-//	NRF_POWER->RAM[6].POWER = NRF52_ONRAM1_OFFRAM0;
-//	NRF_POWER->RAM[7].POWER = NRF52_ONRAM1_OFFRAM0;
-//
-//	NRF_POWER->RESETREAS = POWER_RESETREAS_OFF_Msk;
-
+	NRF_POWER->RAM[0].POWER = NRF52_ONRAM1_OFFRAM0;
+	NRF_POWER->RAM[1].POWER = NRF52_ONRAM1_OFFRAM0;
+	NRF_POWER->RAM[2].POWER = NRF52_ONRAM1_OFFRAM0;
+	NRF_POWER->RAM[3].POWER = NRF52_ONRAM1_OFFRAM0;
+	NRF_POWER->RAM[4].POWER = NRF52_ONRAM1_OFFRAM0;
+	NRF_POWER->RAM[5].POWER = NRF52_ONRAM1_OFFRAM0;
+	NRF_POWER->RAM[6].POWER = NRF52_ONRAM1_OFFRAM0;
+	NRF_POWER->RAM[7].POWER = NRF52_ONRAM1_OFFRAM0;
 }
 
 //===================================================================================
@@ -100,7 +97,13 @@ void buttonInterruptInit(void)
 {
 	// button gpio init for interrupt 
 	nrf_gpio_cfg_sense_input(BUTTON, NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_LOW);
-	BUTTON_INTERRUPT_ENABLE();										// enable interrupt from PORT EVENT
+//	BUTTON_INTERRUPT_ENABLE();										// enable interrupt from PORT EVENT
+
+	GPIOTE->CONFIG[0] = (GPIOTE_CONFIG_MODE_Event << GPIOTE_CONFIG_MODE_Pos) |
+						(BUTTON << GPIOTE_CONFIG_PSEL_Pos) |
+						(GPIOTE_CONFIG_POLARITY_HiToLo << GPIOTE_CONFIG_POLARITY_Pos);
+
+	GPIOTE->INTENSET = (GPIOTE_INTENSET_IN0_Enabled << GPIOTE_INTENSET_IN0_Pos);
 	
 	NVIC_SetPriority(GPIOTE_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), LOW_IRQ_PRIO, GPIOTE_INTERRUPT_PRIORITY));									// set and enable NVIC for button interrupt
 	NVIC_EnableIRQ(GPIOTE_IRQn);
@@ -144,5 +147,7 @@ inline void gpioGeneratePulse(uint8_t pin)
 
 inline void sleep()
 {
+	__SEV();
+	__WFE();
 	__WFE();						// wait for event, sleep mode
 }

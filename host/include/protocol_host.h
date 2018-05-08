@@ -5,6 +5,8 @@
 #include "radio.h"
 #include "ADXL362.h"
 
+#include "packetStructures.h"
+
 #define FREQ_COLLECT_DATA_100mHz					1
 #define FREQ_COLLECT_DATA_1Hz						2
 #define FREQ_COLLECT_DATA_10Hz						3
@@ -24,39 +26,6 @@ typedef enum
 
 } PACKET_type_t;
 
-typedef struct{
-	
-	uint8_t		payloadSize;
-	uint8_t 	packetType;
-	uint16_t 	rtc_val_CC0;
-	uint16_t 	rtc_val_CC1;
-	uint8_t		txPower;				//	value in dBm
-	uint8_t		turnOff;
-	
-}sync_packet_t;
-
-typedef struct{
-	
-	uint8_t		payloadSize;
-	uint8_t 	packetType;
-	uint16_t 	rtc_val_CC0;
-	uint32_t 	rtc_val_CC1;
-	uint8_t 	channel;
-	
-}init_packet_t;
-
-typedef struct{
-	
-	uint8_t						payloadSize;
-	uint8_t 					packetType;
-	uint8_t 					channel;
-	ADXL362_AXES_t 				axes;
-	//int							pressure;
-	
-	uint16_t data[15];
-	
-}data_packet_t;
-
 typedef enum
 {
 	CONNECTED				= 0x00U,
@@ -66,7 +35,7 @@ typedef enum
 	WRONG_PACKET_TYPE		= 0x04U,
 	ALREADY_CONNECTED		= 0x05U
 
-} connect_status_t;
+} protocol_status_t;
 
 typedef struct{
 
