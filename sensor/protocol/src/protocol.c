@@ -4,7 +4,7 @@
 #include "nrf_gpio.h"
 #include "mydefinitions.h"
 #include "mytypes.h"
-
+#include "hal.h"
 #include <stddef.h>
 
 #define ATTEMPTS_OF_CONNECT		20
@@ -202,7 +202,6 @@ inline void timeSlotHandler()
 	radio->txEnable();
 
 	gpioGeneratePulse(SCL_PIN);
-	LED_1_TOGGLE();
 }
 
 //=======================================================================================

@@ -2,6 +2,8 @@
 #include "radio.h"
 #include "protocol.h"
 
+#include "ADXL362.h"
+
 #include "nrf.h"
 
 extern char packet[PACKET_SIZE];
@@ -38,11 +40,11 @@ void timeSlotCallback()
 
 	if( 1500 > inc )
 	{
-		((data_packet_t *)packet)->axes.x = (inc += 15);
+		((ADXL362_AXES_t *)(((data_packet_t *)packet)->data))->x = (inc += 15);
 	}
 	else
 	{
 		inc = 0;
-		((data_packet_t *)packet)->axes.x = 0;
+		((ADXL362_AXES_t *)(((data_packet_t *)packet)->data))->x = 0;
 	}
 }

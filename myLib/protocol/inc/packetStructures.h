@@ -30,10 +30,9 @@ typedef struct{
 	uint8_t			numberOfPacket;
 	uint8_t			disconnect;
 	uint8_t 		channel;
-	ADXL362_AXES_t 	axes;
 	//int								pressure;
 	
-	uint16_t 		data[15];
+	uint8_t 		data[6];
 	
 }data_packet_t;
 

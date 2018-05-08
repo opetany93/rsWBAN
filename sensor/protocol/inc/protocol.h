@@ -1,10 +1,7 @@
 #ifndef PROTOCOL_H_
 #define PROTOCOL_H_
 
-#include "hal.h"
-#include "ADXL362.h"
 #include "radio.h"
-
 #include "packetStructures.h"
 
 #define ADVERTISEMENT_CHANNEL					30UL

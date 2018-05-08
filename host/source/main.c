@@ -31,7 +31,7 @@ void dataReadyCallback(data_packet_t** packets, uint8_t amountOfConnectedSensors
 {
 	if( amountOfConnectedSensors == 1 )
 	{
-		sprintf(uartBuf, "%d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z);
+		sprintf(uartBuf, "%d %d %d\r\n", ((ADXL362_AXES_t *)(packets[0]->data))->x,  ((ADXL362_AXES_t *)(packets[0]->data))->y, ((ADXL362_AXES_t *)(packets[0]->data))->z);
 		uartWriteS(uartBuf);
 	}
 
@@ -80,19 +80,19 @@ void dataReadyCallback(data_packet_t** packets, uint8_t amountOfConnectedSensors
 
 	if( amountOfConnectedSensors == 2 )
 	{
-		sprintf(uartBuf, "%d %d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x);
+		sprintf(uartBuf, "%d %d %d %d\r\n", ((ADXL362_AXES_t *)(packets[0]->data))->x,  ((ADXL362_AXES_t *)(packets[0]->data))->y, ((ADXL362_AXES_t *)(packets[0]->data))->z, ((ADXL362_AXES_t *)(packets[1]->data))->x);
 		uartWriteS(uartBuf);
 	}
 
 	if( amountOfConnectedSensors == 3 )
 	{
-		sprintf(uartBuf, "%d %d %d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x, packets[2]->axes.x);
+		sprintf(uartBuf, "%d %d %d %d %d\r\n", ((ADXL362_AXES_t *)(packets[0]->data))->x,  ((ADXL362_AXES_t *)(packets[0]->data))->y, ((ADXL362_AXES_t *)(packets[0]->data))->z, ((ADXL362_AXES_t *)(packets[1]->data))->x, ((ADXL362_AXES_t *)(packets[2]->data))->x);
 		uartWriteS(uartBuf);
 	}
 
 	if( amountOfConnectedSensors == 4 )
 	{
-		sprintf(uartBuf, "%d %d %d %d %d %d\r\n", packets[0]->axes.x,  packets[0]->axes.y, packets[0]->axes.z, packets[1]->axes.x, packets[2]->axes.x, packets[3]->axes.x);
+		sprintf(uartBuf, "%d %d %d %d %d %d\r\n", ((ADXL362_AXES_t *)(packets[0]->data))->x, ((ADXL362_AXES_t *)(packets[0]->data))->y, ((ADXL362_AXES_t *)(packets[0]->data))->z, ((ADXL362_AXES_t *)(packets[1]->data))->x, ((ADXL362_AXES_t *)(packets[2]->data))->x, ((ADXL362_AXES_t *)(packets[3]->data))->x);
 		uartWriteS(uartBuf);
 	}
 }
