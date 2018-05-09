@@ -1,9 +1,9 @@
 #include "protocol.h"
 #include "radio.h"
+#include "rtc.h"
 #include "clocks.h"
 #include "nrf_gpio.h"
 #include "mydefinitions.h"
-#include "mytypes.h"
 #include "hal.h"
 #include <stddef.h>
 #include <stdbool.h>
@@ -11,22 +11,24 @@
 #define ATTEMPTS_OF_CONNECT		20
 
 char packet[PACKET_SIZE];
-data_packet_t* dataPacketPtr = (data_packet_t* )packet;
-init_packet_t* initPacketPtr = (init_packet_t* )packet;
-sync_packet_t* syncPacketPtr = (sync_packet_t* )packet;
+static data_packet_t* dataPacketPtr = (data_packet_t* )packet;
+static init_packet_t* initPacketPtr = (init_packet_t* )packet;
+static sync_packet_t* syncPacketPtr = (sync_packet_t* )packet;
 
-volatile uint8_t channel, packetLength = 24, syncFlag, connectedFlag = 0;
+volatile uint8_t channel, syncFlag, connectedFlag = 0;
 
-Radio *radio = NULL;
+Radio* radio = NULL;
+Rtc* rtc = NULL;
 
 // --------------- internal functions -------------
 static void PPI_Init();
-static void RTC0_Init(uint32_t valueOfCC0, uint32_t valueOfCC1);
+static void setRtc(uint32_t valueOfCC0, uint32_t valueOfCC1);
 static bool waitForSync(uint16_t ms);
 static inline bool isPacketInit(init_packet_t* packetPtr);
 static inline bool isPacketSync(sync_packet_t* packetPtr);
 static inline bool checkApprovals(sync_packet_t* packetPtr);
 static inline void prepareDataPacket();
+static inline protocol_status_t tryConnect();
 // -------------------------------------------------
 
 __WEAK void timeSlotCallback(data_packet_t* dataPacketPtr)
@@ -35,9 +37,10 @@ __WEAK void timeSlotCallback(data_packet_t* dataPacketPtr)
 }
 
 //=======================================================================================
-void initProtocol(Radio *radioDrv)
+void initProtocol(Radio* radioDrv, Rtc* rtcDrv)
 {
 	radio = radioDrv;
+	rtc = rtcDrv;
 }
 
 //=======================================================================================
@@ -52,8 +55,7 @@ void deInitProtocol()
 protocol_status_t connect(void)
 {
 	protocol_status_t connectStatus = DISCONNECTED;
-	RADIO_status_t responseStatus = 4;
-
+	
 	if(!connectedFlag)
 	{
 		startHFCLK();
@@ -62,23 +64,7 @@ protocol_status_t connect(void)
 
 		radio->setChannel(ADVERTISEMENT_CHANNEL); 						// Frequency bin 30, 2430MHz
 
-		for(uint8_t i = 0; (i < ATTEMPTS_OF_CONNECT) && (RADIO_OK !=  responseStatus); i++)
-		{
-			responseStatus = radio->sendPacketWithResponse((uint32_t *)packet, 15);
-			radio->disableRadio();
-
-			if(RADIO_OK == responseStatus)
-			{
-				if(isPacketInit(initPacketPtr))
-				{
-					connectStatus = CONNECTED;
-				}
-				else
-				{
-					connectStatus = WRONG_PACKET_TYPE;
-				}
-			}
-		}
+		connectStatus = tryConnect();
 
 		if(CONNECTED == connectStatus)
 		{
@@ -86,13 +72,13 @@ protocol_status_t connect(void)
 			connectedFlag = 1;
 
 			PPI_Init();
-			RTC0_Init(initPacketPtr->rtc_val_CC0, initPacketPtr->rtc_val_CC1);
+			setRtc(initPacketPtr->rtc_val_CC0, initPacketPtr->rtc_val_CC1);
 
 			if(waitForSync(200))
 			{
 				radio->setChannel(channel);
-				RTC0->TASKS_CLEAR = 1U;
-				RTC0->TASKS_START = 1U;
+				rtc->clear(rtc);
+				rtc->start(rtc);
 				radio->setPacketPtr((uint32_t)packet);
 				radio->endInterruptEnable();
 				radio->readyToStartShortcutSet();
@@ -118,6 +104,33 @@ protocol_status_t connect(void)
 }
 
 //=======================================================================================
+static inline protocol_status_t tryConnect()
+{
+	protocol_status_t connectStatus = DISCONNECTED;
+	RADIO_status_t responseStatus = 4;
+	
+	for(uint8_t i = 0; (i < ATTEMPTS_OF_CONNECT) && (RADIO_OK !=  responseStatus); i++)
+	{
+		responseStatus = radio->sendPacketWithResponse((uint32_t *)packet, 15);
+		radio->disableRadio();
+
+		if(RADIO_OK == responseStatus)
+		{
+			if(isPacketInit(initPacketPtr))
+			{
+				connectStatus = CONNECTED;
+			}
+			else
+			{
+				connectStatus = WRONG_PACKET_TYPE;
+			}
+		}
+	}
+	
+	return connectStatus;
+}
+
+//=======================================================================================
 static void PPI_Init()
 {
 	// connect RTC0 COMPARE[0] EVENT to CLOCK HFCLKSTART TASK
@@ -132,18 +145,14 @@ static void PPI_Init()
 }
 
 //=======================================================================================
-static void RTC0_Init(uint32_t valueOfCC0, uint32_t valueOfCC1)
+static void setRtc(uint32_t valueOfCC0, uint32_t valueOfCC1)
 {
-	RTC0->CC[0] = valueOfCC0;
-	RTC0->CC[1] = valueOfCC1;
-
-	RTC0->PRESCALER = 0;
-	RTC0->EVTENSET = RTC_EVTENSET_COMPARE0_Enabled << RTC_EVTENSET_COMPARE0_Pos; 	// enable generate event for compare0
-	RTC0->INTENSET = RTC_INTENSET_COMPARE0_Enabled << RTC_INTENSET_COMPARE0_Pos;
-	RTC0->INTENSET = RTC_INTENSET_COMPARE1_Enabled << RTC_INTENSET_COMPARE1_Pos;
-
-	NVIC_SetPriority(RTC0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), HIGH_IRQ_PRIO, RTC0_INTERRUPT_PRIORITY));
-	NVIC_EnableIRQ(RTC0_IRQn);
+	rtc->setCCreg(rtc, 0, valueOfCC0);
+	rtc->setCCreg(rtc, 1, valueOfCC1);
+	rtc->setPrescaler(rtc, 0);
+	rtc->compareEventEnable(rtc, 0);
+	rtc->compareInterruptEnable(rtc, 0);
+	rtc->compareInterruptEnable(rtc, 1);
 }
 
 //=======================================================================================
@@ -154,7 +163,7 @@ static bool waitForSync(uint16_t ms)
 	if(RADIO_OK == radio->readPacketWithTimeout((uint32_t *)packet, ms))
 		return isPacketSync(syncPacketPtr);
 	else
-		return FALSE;
+		return false;
 }
 
 //=======================================================================================
@@ -173,19 +182,37 @@ inline void radioSensorHandler()
 					SYSTEM_OFF();
 				}
 
-				RTC0->TASKS_CLEAR = 1U;
+				rtc->clear(rtc);
 				radio->setChannel(channel);
 			}
 			else
 			{
-				RTC0->TASKS_CLEAR = 1U;							// sync, but data was not properly readed
+				rtc->clear(rtc);							// sync, but data was not properly readed
 			}
 		}
 		else
 		{
-			RTC0->TASKS_CLEAR = 1U;								// sync, but data was not properly readed
+			rtc->clear(rtc); 								// sync, but data was not properly readed
 		}
 	}
+}
+
+//=======================================================================================
+static inline bool isPacketSync(sync_packet_t* packetPtr)
+{
+	return PACKET_sync == packetPtr->packetType;
+}
+
+//=======================================================================================
+static inline bool checkApprovals(sync_packet_t* packetPtr)
+{
+	return packetPtr->approvals & (1 << channel);
+}
+
+//=======================================================================================
+static inline bool isPacketInit(init_packet_t* packetPtr)
+{
+	return PACKET_init == packetPtr->packetType;
 }
 
 //=======================================================================================
@@ -194,13 +221,15 @@ inline void timeSlotHandler()
 	prepareDataPacket();
 	timeSlotCallback(dataPacketPtr);
 
-	while ( !isHFCLKstable() )				// wait for stable HCLK which has been started via RTC0 event through PPI
+	while (!isHFCLKstable())				// wait for stable HCLK which has been started via RTC0 event through PPI
 		;
+	
 	radio->txEnable();
 
 	gpioGeneratePulse(SCL_PIN);
 }
 
+//=======================================================================================
 static inline void prepareDataPacket()
 {
 	dataPacketPtr->payloadSize = sizeof(data_packet_t) - 1;
@@ -228,18 +257,4 @@ inline void syncHandler()
 	gpioGeneratePulse(SCL_PIN);
 	LED_2_TOGGLE();
 }
-
-static inline bool isPacketInit(init_packet_t* packetPtr)
-{
-	return PACKET_init == packetPtr->packetType;
-}
-
-static inline bool isPacketSync(sync_packet_t* packetPtr)
-{
-	return PACKET_sync == packetPtr->packetType;
-}
-
-static inline bool checkApprovals(sync_packet_t* packetPtr)
-{
-	return packetPtr->approvals & (1 << channel);
-}
+//=======================================================================================

@@ -40,6 +40,7 @@ else ifeq ($(PLATFORM), NRF52_SENSOR)
 	
 	SRC_FILES += \
     	$(abspath ../../myLib/source/clocks.c) \
+    	$(abspath ../../myLib/source/rtc.c) \
   		$(abspath ../../myLib/source/hal.c) \
   		$(abspath ../../myLib/source/radio.c) \
   		$(abspath ../../myLib/source/spi.c) \

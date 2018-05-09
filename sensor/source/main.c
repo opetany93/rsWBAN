@@ -1,5 +1,6 @@
 #include "hal.h"
 #include "radio.h"
+#include "rtc.h"
 #include "protocol.h"
 #include "ADXL362.h"
 #include "nrf.h"
@@ -8,9 +9,10 @@
 int main(void)
 {
 	boardInit();
-	Radio *radio = radioSensorInit();
+	Radio* radio = radioSensorInit();
+	Rtc* rtc0 = rtcInit(RTC0);
 	buttonInterruptInit();
-	initProtocol(radio);
+	initProtocol(radio,rtc0);
 
 	while(1)
 	{

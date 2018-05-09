@@ -67,10 +67,20 @@ static void initGpio()
 
 #define DC_DC_CONVERTER_ON 		1
 
+static void setNvicPriorities()
+{
+	NVIC_SetPriority(GPIOTE_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), LOW_IRQ_PRIO, GPIOTE_INTERRUPT_PRIORITY));									// set and enable NVIC for button interrupt
+	NVIC_EnableIRQ(GPIOTE_IRQn);
+
+	NVIC_SetPriority(RTC0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), HIGH_IRQ_PRIO, RTC0_INTERRUPT_PRIORITY));
+	NVIC_EnableIRQ(RTC0_IRQn);
+}
+
 void boardInit(void)
 {
 	NVIC_SetPriorityGrouping(7 - PREEMPTION_PRIORITY_BITS);
 	
+	setNvicPriorities();
 	initGpio();
 
 #if DC_DC_CONVERTER_ON	
@@ -104,9 +114,6 @@ void buttonInterruptInit(void)
 						(GPIOTE_CONFIG_POLARITY_HiToLo << GPIOTE_CONFIG_POLARITY_Pos);
 
 	GPIOTE->INTENSET = (GPIOTE_INTENSET_IN0_Enabled << GPIOTE_INTENSET_IN0_Pos);
-	
-	NVIC_SetPriority(GPIOTE_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), LOW_IRQ_PRIO, GPIOTE_INTERRUPT_PRIORITY));									// set and enable NVIC for button interrupt
-	NVIC_EnableIRQ(GPIOTE_IRQn);
 }
 
 // -------------------------------------------------------------------------------------

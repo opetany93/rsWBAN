@@ -2,6 +2,7 @@
 #define PROTOCOL_H_
 
 #include "radio.h"
+#include "rtc.h"
 #include "packetStructures.h"
 
 #define ADVERTISEMENT_CHANNEL					30UL
@@ -32,7 +33,7 @@ typedef enum
 // =================================== Functions ==========================================
 protocol_status_t connect(void);
 
-void initProtocol(Radio *radioDrv);
+void initProtocol(Radio* radioDrv, Rtc* rtcDrv);
 void deInitProtocol();
 
 void timeSlotHandler(void);

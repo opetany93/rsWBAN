@@ -13,8 +13,9 @@
 #include "nrf_gpio.h"
 
 char packet[PACKET_SIZE];
-
-volatile data_packet_t* packet_ptr = (data_packet_t *)packet;
+static const data_packet_t* dataPacketPtr = (data_packet_t* )packet;
+static init_packet_t* initPacketPtr = (init_packet_t* )packet;
+static sync_packet_t* syncPacketPtr = (sync_packet_t* )packet;
 volatile data_packet_t* packets[4];
 
 volatile uint8_t flagsOfConnectedSensors = 0;
@@ -25,15 +26,12 @@ volatile uint8_t channel;
 volatile uint32_t rtc_val_CC0_base;
 volatile uint32_t rtc_val_CC1;
 
-volatile uint8_t packetLength = 30;
 volatile uint8_t txPower = 1, turnOff = 0, approvals = 0;
-
-ADXL362_AXES_t axis;
 
 static Radio *radio = NULL;
 
-void startListening(void);
-void setFreqCollectData(uint8_t freq);
+static void startListening(void);
+static void setFreqCollectData(uint8_t freq);
 
 static void RTC0_SUF_init(void);
 static void RTC1_timeSlotsInit(void);
@@ -144,18 +142,18 @@ inline void radioHostHandler()
 		
 		if(radio->checkCRC())
 		{
-			if(PACKET_data == packet_ptr->packetType)
+			if(PACKET_data == dataPacketPtr->packetType)
 			{
-				memcpy((void*)packets[packet_ptr->channel], packet, sizeof(data_packet_t));
+				memcpy((void*)packets[dataPacketPtr->channel], packet, sizeof(data_packet_t));
 
-				if(1 == packet_ptr->disconnect)
+				if(1 == dataPacketPtr->disconnect)
 				{
-					removeSensor(packet_ptr->channel);
-					approvals |= (1 << packet_ptr->channel);
+					removeSensor(dataPacketPtr->channel);
+					approvals |= (1 << dataPacketPtr->channel);
 				}
 			}
 			
-			else if(PACKET_init == packet_ptr->packetType)
+			else if(PACKET_init == dataPacketPtr->packetType)
 			{
 				uint8_t freeSlot = findFreeTimeSlot();
 				
@@ -201,11 +199,11 @@ static void removeSensor(uint8_t numberOfSlot)
 // =======================================================================================
 static void prepareInitPacket(uint8_t numberOfSlot)
 {
-	((init_packet_t *)packet)->channel = numberOfSlot;							// przypisanie id sensora
-	((init_packet_t *)packet)->payloadSize = 8;
-	((init_packet_t *)packet)->packetType = PACKET_init;
-	((init_packet_t *)packet)->rtc_val_CC0 = rtc_val_CC0_base * ( (2 * (numberOfSlot + 1)) - 1);
-	((init_packet_t *)packet)->rtc_val_CC1 = rtc_val_CC1;
+	initPacketPtr->channel = numberOfSlot;							// przypisanie id sensora
+	initPacketPtr->payloadSize = sizeof(init_packet_t);
+	initPacketPtr->packetType = PACKET_init;
+	initPacketPtr->rtc_val_CC0 = rtc_val_CC0_base * ( (2 * (numberOfSlot + 1)) - 1);
+	initPacketPtr->rtc_val_CC1 = rtc_val_CC1;
 }
 
 // =======================================================================================
@@ -232,14 +230,14 @@ inline void syncTransmitHandler()
 // =======================================================================================
 static inline void prepareSyncPacket()
 {
-	((sync_packet_t *)packet)->payloadSize = sizeof(sync_packet_t) - 1;
-	((sync_packet_t *)packet)->packetType = PACKET_sync;
-	((sync_packet_t *)packet)->rtc_val_CC0 = 0;
-	((sync_packet_t *)packet)->rtc_val_CC1 = 0;
+	syncPacketPtr->payloadSize = sizeof(sync_packet_t) - 1;
+	syncPacketPtr->packetType = PACKET_sync;
+	syncPacketPtr->rtc_val_CC0 = 0;
+	syncPacketPtr->rtc_val_CC1 = 0;
 
-	((sync_packet_t *)packet)->approvals = approvals;
-	((sync_packet_t *)packet)->txPower = txPower;
-	((sync_packet_t *)packet)->turnOff = turnOff;
+	syncPacketPtr->approvals = approvals;
+	syncPacketPtr->txPower = txPower;
+	syncPacketPtr->turnOff = turnOff;
 }
 
 // =======================================================================================
