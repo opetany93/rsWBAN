@@ -8,8 +8,8 @@
 
 uint8_t tempRSSI;
 
-static inline uint8_t isRxIdleState(void);
-static inline uint8_t checkCRC(void);
+static inline bool isRxIdleState(void);
+static inline bool checkCRC(void);
 static inline void setChannel(uint8_t channel);
 static inline void setPacketPtr(uint32_t ptr);
 static inline void sendPacket(uint32_t *packet);
@@ -336,12 +336,12 @@ inline void timeoutInterruptHandler(void)
 	TIMER1->TASKS_STOP = 1U;
 }
 
-static inline uint8_t isRxIdleState()
+static inline bool isRxIdleState()
 {
 	return RADIO->STATE == RADIO_STATE_STATE_RxIdle;
 }
 
-static inline uint8_t checkCRC()
+static inline bool checkCRC()
 {
 	return RADIO->CRCSTATUS == 1U;
 }

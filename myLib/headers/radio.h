@@ -2,6 +2,7 @@
 #define __RADIO_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define RADIO_DISABLE()				RADIO->TASKS_DISABLE = 1U
 
@@ -23,8 +24,8 @@ typedef struct{
 	uint8_t (*readPacketWithTimeout)(uint32_t *packet, uint16_t timeout_ms);
 	uint8_t (*sendPacketWithResponse)(uint32_t *packet, uint16_t timeout_ms);
 	void (*disableRadio)(void);
-	uint8_t (*isRxIdleState)(void);
-	uint8_t (*checkCRC)(void);
+	bool (*isRxIdleState)(void);
+	bool (*checkCRC)(void);
 	void (*setChannel)(uint8_t channel);
 	void (*setPacketPtr)(uint32_t ptr);
 	void (*rxEnable)(void);

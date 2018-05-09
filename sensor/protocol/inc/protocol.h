@@ -39,6 +39,6 @@ void timeSlotHandler(void);
 void syncHandler(void);
 void radioSensorHandler(void);
 
-void timeSlotCallback(void);
+void timeSlotCallback(data_packet_t* dataPacketPtr);
 
 #endif

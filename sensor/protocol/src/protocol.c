@@ -6,10 +6,15 @@
 #include "mytypes.h"
 #include "hal.h"
 #include <stddef.h>
+#include <stdbool.h>
 
 #define ATTEMPTS_OF_CONNECT		20
 
 char packet[PACKET_SIZE];
+data_packet_t* dataPacketPtr = (data_packet_t* )packet;
+init_packet_t* initPacketPtr = (init_packet_t* )packet;
+sync_packet_t* syncPacketPtr = (sync_packet_t* )packet;
+
 volatile uint8_t channel, packetLength = 24, syncFlag, connectedFlag = 0;
 
 Radio *radio = NULL;
@@ -17,12 +22,14 @@ Radio *radio = NULL;
 // --------------- internal functions -------------
 static void PPI_Init();
 static void RTC0_Init(uint32_t valueOfCC0, uint32_t valueOfCC1);
-static uint8_t waitForSync(uint16_t ms);
-static inline uint8_t isPacketInit(char* packetPtr);
-static inline uint8_t isPacketSync(char* packetPtr);
+static bool waitForSync(uint16_t ms);
+static inline bool isPacketInit(init_packet_t* packetPtr);
+static inline bool isPacketSync(sync_packet_t* packetPtr);
+static inline bool checkApprovals(sync_packet_t* packetPtr);
+static inline void prepareDataPacket();
 // -------------------------------------------------
 
-__WEAK void timeSlotCallback()
+__WEAK void timeSlotCallback(data_packet_t* dataPacketPtr)
 {
 
 }
@@ -50,8 +57,8 @@ protocol_status_t connect(void)
 	if(!connectedFlag)
 	{
 		startHFCLK();
-		((data_packet_t *)packet)->payloadSize = 1;
-		((data_packet_t *)packet)->packetType = PACKET_init;
+		dataPacketPtr->payloadSize = 1;
+		dataPacketPtr->packetType = PACKET_init;
 
 		radio->setChannel(ADVERTISEMENT_CHANNEL); 						// Frequency bin 30, 2430MHz
 
@@ -62,7 +69,7 @@ protocol_status_t connect(void)
 
 			if(RADIO_OK == responseStatus)
 			{
-				if(isPacketInit(packet))
+				if(isPacketInit(initPacketPtr))
 				{
 					connectStatus = CONNECTED;
 				}
@@ -75,11 +82,11 @@ protocol_status_t connect(void)
 
 		if(CONNECTED == connectStatus)
 		{
-			channel = ((init_packet_t *)packet)->channel;
+			channel = initPacketPtr->channel;
 			connectedFlag = 1;
 
 			PPI_Init();
-			RTC0_Init(((init_packet_t *)packet)->rtc_val_CC0, ((init_packet_t *)packet)->rtc_val_CC1);
+			RTC0_Init(initPacketPtr->rtc_val_CC0, initPacketPtr->rtc_val_CC1);
 
 			if(waitForSync(200))
 			{
@@ -140,12 +147,12 @@ static void RTC0_Init(uint32_t valueOfCC0, uint32_t valueOfCC1)
 }
 
 //=======================================================================================
-static uint8_t waitForSync(uint16_t ms)
+static bool waitForSync(uint16_t ms)
 {
 	radio->setChannel(SYNC_CHANNEL);
 
 	if(RADIO_OK == radio->readPacketWithTimeout((uint32_t *)packet, ms))
-		return isPacketSync(packet);
+		return isPacketSync(syncPacketPtr);
 	else
 		return FALSE;
 }
@@ -159,9 +166,9 @@ inline void radioSensorHandler()
 
 		if(radio->checkCRC())
 		{
-			if(isPacketSync(packet))
+			if(isPacketSync(syncPacketPtr))
 			{
-				if(((sync_packet_t*)packet)->approvals & (1 << channel))
+				if(checkApprovals(syncPacketPtr))
 				{
 					SYSTEM_OFF();
 				}
@@ -184,24 +191,27 @@ inline void radioSensorHandler()
 //=======================================================================================
 inline void timeSlotHandler()
 {
-	((data_packet_t *)packet)->payloadSize = sizeof(data_packet_t) - 1;
-	((data_packet_t *)packet)->packetType = PACKET_data;
-	((data_packet_t *)packet)->channel = channel;
-	((data_packet_t *)packet)->numberOfPacket++;
-	
-	timeSlotCallback();
+	prepareDataPacket();
+	timeSlotCallback(dataPacketPtr);
 
 	while ( !isHFCLKstable() )				// wait for stable HCLK which has been started via RTC0 event through PPI
 		;
-
-	if(!connectedFlag)
-	{
-		((data_packet_t *)packet)->disconnect = 1;
-	}
-
 	radio->txEnable();
 
 	gpioGeneratePulse(SCL_PIN);
+}
+
+static inline void prepareDataPacket()
+{
+	dataPacketPtr->payloadSize = sizeof(data_packet_t) - 1;
+	dataPacketPtr->packetType = PACKET_data;
+	dataPacketPtr->channel = channel;
+	dataPacketPtr->numberOfPacket++;
+
+	if(!connectedFlag)
+	{
+		dataPacketPtr->disconnect = 1;
+	}
 }
 
 //=======================================================================================
@@ -219,12 +229,17 @@ inline void syncHandler()
 	LED_2_TOGGLE();
 }
 
-static inline uint8_t isPacketInit(char* packetPtr)
+static inline bool isPacketInit(init_packet_t* packetPtr)
 {
-	return PACKET_init == ((init_packet_t *)packetPtr)->packetType;
+	return PACKET_init == packetPtr->packetType;
 }
 
-static inline uint8_t isPacketSync(char* packetPtr)
+static inline bool isPacketSync(sync_packet_t* packetPtr)
 {
-	return PACKET_sync == ((sync_packet_t *)packet)->packetType;
+	return PACKET_sync == packetPtr->packetType;
+}
+
+static inline bool checkApprovals(sync_packet_t* packetPtr)
+{
+	return packetPtr->approvals & (1 << channel);
 }

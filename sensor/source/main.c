@@ -1,12 +1,8 @@
 #include "hal.h"
 #include "radio.h"
 #include "protocol.h"
-
 #include "ADXL362.h"
-
 #include "nrf.h"
-
-extern char packet[PACKET_SIZE];
 
 //=======================================================================================
 int main(void)
@@ -23,8 +19,7 @@ int main(void)
 }
 
 
-
-void timeSlotCallback()
+void timeSlotCallback(data_packet_t* dataPacketPtr)
 {
 	static uint16_t inc = 0;
 
@@ -40,11 +35,11 @@ void timeSlotCallback()
 
 	if( 1500 > inc )
 	{
-		((ADXL362_AXES_t *)(((data_packet_t *)packet)->data))->x = (inc += 15);
+		((ADXL362_AXES_t *)(dataPacketPtr->data))->x = (inc += 15);
 	}
 	else
 	{
 		inc = 0;
-		((ADXL362_AXES_t *)(((data_packet_t *)packet)->data))->x = 0;
+		((ADXL362_AXES_t *)(dataPacketPtr->data))->x = 0;
 	}
 }
