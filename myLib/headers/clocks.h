@@ -2,13 +2,14 @@
 #define CLOCKS_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 int8_t startLFCLK(void);
-uint8_t isLFCLKstable(void);
+bool isLFCLKstable(void);
 
 int8_t startHFCLK(void);
 void stopHFCLK(void);
-uint8_t isHFCLKstable(void);
-uint8_t isHFCLKstopped(void);
+bool isHFCLKstable(void);
+bool isHFCLKstopped(void);
 
 #endif

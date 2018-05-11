@@ -1,6 +1,8 @@
 #include "clocks.h"
 
 #include "nrf.h"
+#include "nrf_clock.h"
+#include "nrf_rtc.h"
 
 #include "mytypes.h"
 #include "mydefinitions.h"
@@ -11,13 +13,13 @@ inline int8_t startLFCLK(void)
 	if( !isLFCLKstable() )
 	{
 		// Starts the internal LFCLK XTAL oscillator for RTC
-		CLOCK->LFCLKSRC = (CLOCK_LFCLKSRC_SRC_Xtal << CLOCK_LFCLKSRC_SRC_Pos);
-		CLOCK->EVENTS_LFCLKSTARTED = 0;
-		CLOCK->TASKS_LFCLKSTART = 1;
-		
+		nrf_clock_lf_src_set(NRF_CLOCK_LFCLK_Xtal);
+		nrf_clock_event_clear(NRF_CLOCK_EVENT_LFCLKSTARTED);
+		nrf_clock_task_trigger(NRF_CLOCK_TASK_LFCLKSTART);
+
 		while( !isLFCLKstable() );
 		
-		RTC0->TASKS_STOP = 0;													// added to avoid anomaly (errata [20])
+		nrf_rtc_task_trigger(RTC0, NRF_RTC_TASK_START);  			// added to avoid anomaly (errata [20])
 		
 		return 0;
 	}
@@ -27,42 +29,37 @@ inline int8_t startLFCLK(void)
 	}
 }
 
-uint8_t isLFCLKstable(void)
+bool isLFCLKstable(void)
 {
-	uint32_t stable = (uint32_t)(CLOCK_LFCLKSTAT_STATE_Running << CLOCK_LFCLKSTAT_STATE_Pos) | (CLOCK_LFCLKSTAT_SRC_Xtal << CLOCK_LFCLKSTAT_SRC_Pos);
-	
-	if ( CLOCK->LFCLKSTAT == stable )
+	if ( nrf_clock_lf_start_task_status_get() )
 	{
-		CLOCK->EVENTS_LFCLKSTARTED = 0;
-		
-		return TRUE;
+		nrf_clock_event_clear(NRF_CLOCK_EVENT_LFCLKSTARTED);
+		return true;
 	}
 	else
 	{
-		return FALSE;
+		return false;
 	}
 }
 
 // =======================================================================================
 inline void stopHFCLK()
 {
-	CLOCK->TASKS_HFCLKSTOP = 1U;
+	nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTOP);
 
 	while ( !isHFCLKstopped() )
-		CLOCK->TASKS_HFCLKSTOP = 1U;
+		;
 }
 
-uint8_t isHFCLKstopped()
+bool isHFCLKstopped()
 {
-	uint32_t stat = (uint32_t)(CLOCK_HFCLKSTAT_STATE_Running << CLOCK_HFCLKSTAT_STATE_Pos) | (CLOCK_HFCLKSTAT_SRC_Xtal << CLOCK_HFCLKSTAT_SRC_Pos);
-
-	if ( CLOCK->HFCLKSTAT & stat )
+	if ( nrf_clock_hf_is_running(NRF_CLOCK_HFCLK_HIGH_ACCURACY) )
 	{
-		return FALSE;
+		return false;
 	}
 	else
 	{
-		return TRUE;
+		return true;
 	}
 }
 
@@ -70,8 +67,8 @@ inline int8_t startHFCLK(void)
 {
 	if ( !isHFCLKstable() )
 	{
-		CLOCK->EVENTS_HFCLKSTARTED = 0;
-		CLOCK->TASKS_HFCLKSTART = 1U;
+		nrf_clock_event_clear(NRF_CLOCK_EVENT_HFCLKSTARTED);
+		nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTART);
 		
 		while ( !isHFCLKstable() )
 			;
@@ -84,19 +81,15 @@ inline int8_t startHFCLK(void)
 	}
 }
 
-uint8_t isHFCLKstable(void)
+bool isHFCLKstable(void)
 {
-	uint32_t stable = (uint32_t)(CLOCK_HFCLKSTAT_STATE_Running << CLOCK_HFCLKSTAT_STATE_Pos) | (CLOCK_HFCLKSTAT_SRC_Xtal << CLOCK_HFCLKSTAT_SRC_Pos);
-	
-	if ( CLOCK->HFCLKSTAT == stable )
+	if ( nrf_clock_hf_is_running(NRF_CLOCK_HFCLK_HIGH_ACCURACY) )
 	{
-		CLOCK->EVENTS_HFCLKSTARTED = 0;
-		
-		return TRUE;
+		return true;
 	}
 	else
 	{
-		return FALSE;
+		return false;
 	}
 }
 
