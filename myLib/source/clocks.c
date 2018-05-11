@@ -19,7 +19,7 @@ inline int8_t startLFCLK(void)
 
 		while( !isLFCLKstable() );
 		
-		nrf_rtc_task_trigger(RTC0, NRF_RTC_TASK_START);  			// added to avoid anomaly (errata [20])
+		nrf_rtc_task_trigger(RTC0, NRF_RTC_TASK_STOP);  			// added to avoid anomaly (errata [20])
 		
 		return 0;
 	}

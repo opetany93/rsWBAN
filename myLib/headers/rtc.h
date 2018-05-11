@@ -2,10 +2,7 @@
 #define RTC_H_
 
 #include <stdint.h>
-#include "mydefinitions.h"
 #include "nrf.h"
-
-
 
 typedef struct{
 

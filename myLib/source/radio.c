@@ -3,7 +3,7 @@
 #include "mydefinitions.h"
 #include "clocks.h"
 #include "nrf.h"
-
+#include "nrf_timer.h"
 #include <stdlib.h>
 
 uint8_t tempRSSI;
@@ -90,15 +90,13 @@ static inline void TIMER0_init(void)
 	NVIC_SetPriority(TIMER0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), MIDDLE_IRQ_PRIO, TIMER0_INTERRUPT_PRIORITY));
 	NVIC_EnableIRQ(TIMER0_IRQn);
 
-	//24bit mode
-	TIMER0->BITMODE = TIMER_BITMODE_BITMODE_24Bit << TIMER_BITMODE_BITMODE_Pos;
-	//Enable interrupt for COMPARE[0]
-	TIMER0->INTENSET = TIMER_INTENSET_COMPARE0_Enabled <<  TIMER_INTENSET_COMPARE0_Pos;
+	nrf_timer_bit_width_set(TIMER0, NRF_TIMER_BIT_WIDTH_24);
+	nrf_timer_int_enable(TIMER0, TIMER_INTENSET_COMPARE0_Msk);
 
-	TIMER0->TASKS_STOP = 1U;
-	TIMER0->TASKS_CLEAR = 1U;
+	nrf_timer_task_trigger(TIMER0, NRF_TIMER_TASK_STOP);
+	nrf_timer_task_trigger(TIMER0, NRF_TIMER_TASK_CLEAR);
 
-	TIMER0->SHORTS = TIMER_SHORTS_COMPARE0_STOP_Msk;
+	nrf_timer_shorts_enable(TIMER0, TIMER_SHORTS_COMPARE0_STOP_Msk);
 }
 
 // =======================================================================================
@@ -277,14 +275,14 @@ static inline uint8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_m
 {
 	RADIO->PACKETPTR = (uint32_t)packet;
 	
-	TIMER0->CC[0] = timeout_ms * 1000;
-	TIMER0->TASKS_CLEAR = 1U;
+	nrf_timer_cc_write(TIMER0, NRF_TIMER_CC_CHANNEL0, timeout_ms * 1000);
+	nrf_timer_task_trigger(TIMER0, NRF_TIMER_TASK_CLEAR);
 	
 	//connect READY event to START task
 	RADIO->SHORTS = RADIO_SHORTS_READY_START_Msk;
 	clearFlags();
 	RADIO->TASKS_RXEN = 1U;
-	TIMER0->TASKS_START = 1U;
+	nrf_timer_task_trigger(TIMER0, NRF_TIMER_TASK_START);
 	
 	while ((0 == RADIO->EVENTS_END) && (0 == timeoutFlag))
 		;
@@ -333,7 +331,7 @@ static inline void disableRadio(void)
 inline void timeoutInterruptHandler(void)
 {
 	timeoutFlag = 1;
-	TIMER1->TASKS_STOP = 1U;
+	nrf_timer_task_trigger(TIMER0, NRF_TIMER_TASK_STOP);
 }
 
 static inline bool isRxIdleState()

@@ -2,34 +2,36 @@
 
 #include <stdlib.h>
 
+#include "nrf_rtc.h"
+
 static inline void clear(void* rtc)
 {
-	((Rtc*)rtc)->RTCx->TASKS_CLEAR = 1U;
+	nrf_rtc_task_trigger(((Rtc*)rtc)->RTCx, NRF_RTC_TASK_CLEAR);
 }
 
 static inline void start(void* rtc)
 {
-	((Rtc*)rtc)->RTCx->TASKS_START = 1U;
+	nrf_rtc_task_trigger(((Rtc*)rtc)->RTCx, NRF_RTC_TASK_START);
 }
 
 static inline void setPrescaler(void* rtc, uint16_t presc)
 {
-	((Rtc*)rtc)->RTCx->PRESCALER = presc;
+	nrf_rtc_prescaler_set(((Rtc*)rtc)->RTCx, presc);
 }
 
 static inline void setCCreg(void* rtc, uint8_t number, uint32_t value)
 {
-	((Rtc*)rtc)->RTCx->CC[number] = value;
+	nrf_rtc_cc_set(((Rtc*)rtc)->RTCx, number, value);
 }
 
 void compareEventEnable(void* rtc, uint8_t nbrOfCompare)
 {
-	((Rtc*)rtc)->RTCx->EVTENSET = (1 << (RTC_EVTENSET_COMPARE0_Pos + nbrOfCompare));
+	nrf_rtc_event_enable(((Rtc*)rtc)->RTCx, (1 << (RTC_EVTENSET_COMPARE0_Pos + nbrOfCompare)));
 }
 
 void compareInterruptEnable(void* rtc, uint8_t nbrOfCompare)
 {
-	((Rtc*)rtc)->RTCx->INTENSET = (1 <<  (RTC_INTENSET_COMPARE0_Pos + nbrOfCompare));
+	nrf_rtc_int_enable(((Rtc*)rtc)->RTCx, (1 << (RTC_EVTENSET_COMPARE0_Pos + nbrOfCompare)));
 }
 
 Rtc* rtcInit(NRF_RTC_Type* RTCx)

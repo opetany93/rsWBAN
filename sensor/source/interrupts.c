@@ -7,6 +7,9 @@
 
 #include "nrf_gpio.h"
 #include "nrf_delay.h"
+#include "nrf_rtc.h"
+#include "nrf_gpiote.h"
+#include "nrf_timer.h"
 
 #define ADXL362_ENABLE 0
 
@@ -28,17 +31,15 @@ void RADIO_IRQHandler(void)
 // =======================================================================================
 void RTC0_IRQHandler()
 {
-  if (RTC0->EVENTS_COMPARE[0])
+  if (nrf_rtc_event_pending(RTC0,NRF_RTC_EVENT_COMPARE_0))
   {
-		RTC0->EVENTS_COMPARE[0] = 0U;
-		
+		nrf_rtc_event_clear(RTC0, NRF_RTC_EVENT_COMPARE_0);
 		timeSlotHandler();
   }
 	
-  if (RTC0->EVENTS_COMPARE[1])
+  if (nrf_rtc_event_pending(RTC0,NRF_RTC_EVENT_COMPARE_1))
   {
-	  RTC0->EVENTS_COMPARE[1] = 0U;
-		
+	  nrf_rtc_event_clear(RTC0, NRF_RTC_EVENT_COMPARE_1);
 	  syncHandler();
   }
 }
@@ -52,9 +53,9 @@ static void spiControlChipSelectADXL362Interface(uint8_t state){ spiControlChipS
 // =======================================================================================
 void GPIOTE_IRQHandler(void)
 {
-	if(GPIOTE->EVENTS_IN[0])
+	if(nrf_gpiote_event_is_set(NRF_GPIOTE_EVENTS_IN_0))
 	{
-		GPIOTE->EVENTS_IN[0] = 0U;
+		nrf_gpiote_event_clear(NRF_GPIOTE_EVENTS_IN_0);
 
 		protocol_status_t status = connect();
 
@@ -84,18 +85,14 @@ void GPIOTE_IRQHandler(void)
 			NVIC_SetPriority(TIMER1_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), LOW_IRQ_PRIO, TIMER1_INTERRUPT_PRIORITY));
 			NVIC_EnableIRQ(TIMER1_IRQn);
 
-			//24bit mode
-			TIMER1->BITMODE = TIMER_BITMODE_BITMODE_24Bit << TIMER_BITMODE_BITMODE_Pos;
-			//Enable interrupt for COMPARE[0]
-			TIMER1->INTENSET = TIMER_INTENSET_COMPARE0_Enabled <<  TIMER_INTENSET_COMPARE0_Pos;
+			nrf_timer_bit_width_set(TIMER1, NRF_TIMER_BIT_WIDTH_24);
+			nrf_timer_int_enable(TIMER1, TIMER_INTENSET_COMPARE0_Msk);
+			nrf_timer_task_trigger(TIMER1, NRF_TIMER_TASK_STOP);
+			nrf_timer_task_trigger(TIMER1, NRF_TIMER_TASK_CLEAR);
+			nrf_timer_cc_write(TIMER1, NRF_TIMER_CC_CHANNEL0, 2000 * 1000);
+			nrf_timer_task_trigger(TIMER1, NRF_TIMER_TASK_START);
 
-			TIMER1->TASKS_STOP = 1U;
-			TIMER1->TASKS_CLEAR = 1U;
-
-			TIMER1->CC[0] = 2000 * 1000;
-			TIMER1->TASKS_START = 1U;
-
-			// TODO: opakuj powy¿sze w funkcjê
+			// TODO: opakuj powy¿sze ustawienie timera w funkcjê
 		}
 	}
 }
@@ -103,10 +100,9 @@ void GPIOTE_IRQHandler(void)
 // =======================================================================================
 void TIMER0_IRQHandler(void)
 {
-	if(TIMER0->EVENTS_COMPARE[0])
+	if(nrf_timer_event_check(TIMER0, NRF_TIMER_EVENT_COMPARE0))
 	{
-		TIMER0->EVENTS_COMPARE[0] = 0U;
-		
+		nrf_timer_event_clear(TIMER0, NRF_TIMER_EVENT_COMPARE0);
 		timeoutInterruptHandler();
 	}
 }
@@ -114,11 +110,10 @@ void TIMER0_IRQHandler(void)
 // =======================================================================================
 void TIMER1_IRQHandler(void)
 {
-	if(TIMER1->EVENTS_COMPARE[0])
+	if(nrf_timer_event_check(TIMER1, NRF_TIMER_EVENT_COMPARE0))
 	{
-		TIMER1->EVENTS_COMPARE[0] = 0U;
-
-		TIMER1->TASKS_STOP = 1U;
+		nrf_timer_event_clear(TIMER1, NRF_TIMER_EVENT_COMPARE0);
+		nrf_timer_task_trigger(TIMER1, NRF_TIMER_TASK_STOP);
 
 		if(0 == nrf_gpio_pin_read(BUTTON))
 		{

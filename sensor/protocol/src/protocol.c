@@ -3,6 +3,7 @@
 #include "rtc.h"
 #include "clocks.h"
 #include "nrf_gpio.h"
+#include "nrf_ppi.h"
 #include "mydefinitions.h"
 #include "hal.h"
 #include <stddef.h>
@@ -134,14 +135,12 @@ static inline protocol_status_t tryConnect()
 static void PPI_Init()
 {
 	// connect RTC0 COMPARE[0] EVENT to CLOCK HFCLKSTART TASK
-	PPI->CH[0].EEP = (uint32_t) &NRF_RTC0->EVENTS_COMPARE[0];
-	PPI->CH[0].TEP = (uint32_t) &NRF_CLOCK->TASKS_HFCLKSTART;
-	PPI->CHENSET = PPI_CHENSET_CH0_Enabled << PPI_CHENSET_CH0_Pos;
+	nrf_ppi_channel_endpoint_setup(NRF_PPI_CHANNEL0, (uint32_t) &NRF_RTC0->EVENTS_COMPARE[0], (uint32_t) &NRF_CLOCK->TASKS_HFCLKSTART);
+	nrf_ppi_channel_enable(NRF_PPI_CHANNEL0);
 
 	// connect RADIO DISABLED EVENT to CLOCK TASK HFCLKSTOP
-	PPI->CH[1].EEP = (uint32_t) &NRF_RADIO->EVENTS_DISABLED;
-	PPI->CH[1].TEP = (uint32_t) &NRF_CLOCK->TASKS_HFCLKSTOP;
-	PPI->CHENSET = PPI_CHENSET_CH1_Enabled << PPI_CHENSET_CH1_Pos;
+	nrf_ppi_channel_endpoint_setup(NRF_PPI_CHANNEL1, (uint32_t) &NRF_RADIO->EVENTS_DISABLED, (uint32_t) &NRF_CLOCK->TASKS_HFCLKSTOP);
+	nrf_ppi_channel_enable(NRF_PPI_CHANNEL1);
 }
 
 //=======================================================================================

@@ -3,6 +3,8 @@
 #include "nrf_gpio.h"
 #include "nrf.h"
 #include "nrf_delay.h"
+#include "nrf_power.h"
+#include "nrf_gpiote.h"
 
 #include "clocks.h"
 
@@ -84,7 +86,7 @@ void boardInit(void)
 	initGpio();
 
 #if DC_DC_CONVERTER_ON	
-	NRF_POWER->DCDCEN = 1U;															//Internal DC/DC regulator enable
+	nrf_power_dcdcen_set(true);														//Internal DC/DC regulator enable
 #endif
 	
 	if ( 0 > startLFCLK() )					// start 32,768 kHz oscillator
@@ -109,11 +111,9 @@ void buttonInterruptInit(void)
 	nrf_gpio_cfg_sense_input(BUTTON, NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_LOW);
 //	BUTTON_INTERRUPT_ENABLE();										// enable interrupt from PORT EVENT
 
-	GPIOTE->CONFIG[0] = (GPIOTE_CONFIG_MODE_Event << GPIOTE_CONFIG_MODE_Pos) |
-						(BUTTON << GPIOTE_CONFIG_PSEL_Pos) |
-						(GPIOTE_CONFIG_POLARITY_HiToLo << GPIOTE_CONFIG_POLARITY_Pos);
-
-	GPIOTE->INTENSET = (GPIOTE_INTENSET_IN0_Enabled << GPIOTE_INTENSET_IN0_Pos);
+	nrf_gpiote_event_enable(0);
+	nrf_gpiote_event_configure(0, BUTTON, NRF_GPIOTE_POLARITY_HITOLO);
+	nrf_gpiote_int_enable(GPIOTE_INTENSET_IN0_Msk);
 }
 
 // -------------------------------------------------------------------------------------
@@ -148,8 +148,8 @@ void boardInit(void)
 
 inline void gpioGeneratePulse(uint8_t pin)
 {
-	NRF_GPIO->OUTSET = (1 << pin);
-	NRF_GPIO->OUTCLR = (1 << pin);
+	nrf_gpio_pin_set(pin);
+	nrf_gpio_pin_clear(pin);
 }
 
 inline void sleep()

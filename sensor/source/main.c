@@ -4,6 +4,7 @@
 #include "protocol.h"
 #include "ADXL362.h"
 #include "nrf.h"
+#include "mydefinitions.h"
 
 //=======================================================================================
 int main(void)
