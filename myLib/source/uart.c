@@ -28,8 +28,8 @@ void uartDmaInit(void)
 									|  (GPIO_PIN_CNF_PULL_Disabled  << GPIO_PIN_CNF_PULL_Pos)
 									|  (GPIO_PIN_CNF_DIR_Input      << GPIO_PIN_CNF_DIR_Pos));
 
-	UARTE->ENABLE = UARTE_ENABLE_ENABLE_Enabled;
-	UARTE->BAUDRATE = UARTE_BAUDRATE_BAUDRATE_Baud1M;
+	nrf_uarte_enable(UARTE);
+	nrf_uarte_baudrate_set(UARTE, NRF_UARTE_BAUDRATE_1000000);
 
 	UARTE->TXD.MAXCNT = 0; //FTPAN109
 	UARTE->INTENSET = UARTE_INTENSET_TXSTARTED_Msk; //FTPAN109
@@ -38,10 +38,8 @@ void uartDmaInit(void)
 										 LOW_IRQ_PRIO, UARTE_IRQ_PRIORITY));
 	NVIC_EnableIRQ(UARTE0_UART0_IRQn);
 
-	UARTE->PSEL.RXD = UART_RX_PIN;
-	UARTE->PSEL.TXD = UART_TX_PIN;
-	UARTE->PSEL.CTS = NRF_UARTE_PSEL_DISCONNECTED;
-	UARTE->PSEL.RTS = NRF_UARTE_PSEL_DISCONNECTED;
+	nrf_uarte_txrx_pins_set(UARTE, UART_TX_PIN, UART_RX_PIN);
+	nrf_uarte_hwfc_pins_disconnect(UARTE);
 }
 
 //===============================================================================================
@@ -59,22 +57,14 @@ void uartInit(void)
 									|  (GPIO_PIN_CNF_PULL_Disabled  << GPIO_PIN_CNF_PULL_Pos)
 									|  (GPIO_PIN_CNF_DIR_Input      << GPIO_PIN_CNF_DIR_Pos));
 	
-	//Enable UART
-	UART->ENABLE = UART_ENABLE_ENABLE_Enabled;
-	//Start UART transmitter
-	UART->TASKS_STARTTX = 1U;
-	//Start UART receiver
-	UART->TASKS_STARTRX = 1U;
 	
-	//set speed
-	UART->BAUDRATE = UART_BAUDRATE_BAUDRATE_Baud1M;
-	//set tx pin
-	UART->PSELRXD = UART_RX_PIN;
-	UART->PSELTXD = UART_TX_PIN;
-	
-	//disable RTS and CTS
-	UART->PSELRTS = NRF_UART_PSEL_DISCONNECTED;
-	UART->PSELCTS = NRF_UART_PSEL_DISCONNECTED;
+	nrf_uart_enable(UART);										//Enable UART
+	nrf_uart_task_trigger(UART, NRF_UART_TASK_STARTTX);			//Start UART transmitter
+	nrf_uart_task_trigger(UART, NRF_UART_TASK_STARTRX);			//Start UART receiver
+	nrf_uart_baudrate_set(UART, NRF_UARTE_BAUDRATE_1000000);	//set speed
+
+	nrf_uart_txrx_pins_set(UART, UART_TX_PIN, UART_RX_PIN);
+	nrf_uart_hwfc_pins_disconnect(UART);					//disable RTS and CTS
 }
 
 //===============================================================================================
@@ -85,18 +75,15 @@ void setUartIrqFunc(void (*pFunc)(char data))
 		uartRE = pFunc;
 		
 		//NVIC set priority for interrupt
-		NVIC_SetPriority(UARTE0_UART0_IRQn, 0x09);
-		//enable interrupt in NVIC
-		NVIC_EnableIRQ (UARTE0_UART0_IRQn);
-		//enable interrupt from receiver
-		UART->INTENSET = (UART_INTENSET_RXDRDY_Enabled << UART_INTENSET_RXDRDY_Pos);
+		NVIC_SetPriority(UARTE0_UART0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),
+											LOW_IRQ_PRIO, UARTE_IRQ_PRIORITY));
+		NVIC_EnableIRQ (UARTE0_UART0_IRQn);								//enable interrupt in NVIC
+		nrf_uarte_int_enable(UARTE, UARTE_INTENSET_RXDRDY_Msk);			//enable interrupt from receiver
 	}
 	else
 	{
-		//disable interrupt from receiver
-		UART->INTENCLR = (UART_INTENCLR_RXDRDY_Enabled << UART_INTENCLR_RXDRDY_Pos);
-		//disable interrupt in NVIC
-		NVIC_DisableIRQ(UARTE0_UART0_IRQn);
+		nrf_uart_int_disable(UART, UART_INTENCLR_RXDRDY_Msk);			//disable interrupt from receiver
+		NVIC_DisableIRQ(UARTE0_UART0_IRQn);								//disable interrupt in NVIC
 		
 		uartRE = NULL;
 	}
@@ -119,9 +106,9 @@ void UARTE0_UART0_IRQHandler(void)
 	}
 	else
 	{
-		if (UARTE->EVENTS_ENDTX)
+		if (nrf_uarte_event_check(UARTE, NRF_UARTE_EVENT_ENDTX))
 		{
-			UARTE->EVENTS_ENDTX = 0;
+			nrf_uarte_event_clear(UARTE, NRF_UARTE_EVENT_ENDTX);
 
 			if (UARTE->TXD.MAXCNT != 0)
 			{

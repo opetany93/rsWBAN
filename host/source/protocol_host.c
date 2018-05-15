@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include "radio.h"
 #include "lcd_Nokia5110.h"
@@ -11,11 +12,13 @@
 
 #include "nrf.h"
 #include "nrf_gpio.h"
+#include "nrf_rtc.h"
+#include "nrf_ppi.h"
 
 char packet[PACKET_SIZE];
-static const data_packet_t* dataPacketPtr = (data_packet_t* )packet;
-static init_packet_t* initPacketPtr = (init_packet_t* )packet;
-static sync_packet_t* syncPacketPtr = (sync_packet_t* )packet;
+static data_packet_t* packetAsData = (data_packet_t* )packet;
+static init_packet_t* packetAsInit = (init_packet_t* )packet;
+static sync_packet_t* packetAsSync = (sync_packet_t* )packet;
 volatile data_packet_t* packets[4];
 
 volatile uint8_t flagsOfConnectedSensors = 0;
@@ -28,13 +31,15 @@ volatile uint32_t rtc_val_CC1;
 
 volatile uint8_t txPower = 1, turnOff = 0, approvals = 0;
 
-static Radio *radio = NULL;
+static Radio* radio = NULL;
+static Rtc* rtc0 = NULL;
+static Rtc* rtc1 = NULL;
 
 static void startListening(void);
 static void setFreqCollectData(uint8_t freq);
 
-static void RTC0_SUF_init(void);
-static void RTC1_timeSlotsInit(void);
+static void sufInit(void);
+static void timeSlotsInit(void);
 static void initPPI(void);
 static void prepareSyncPacket();
 static void prepareInitPacket(uint8_t numberOfSlot);
@@ -42,6 +47,8 @@ static uint8_t findFreeTimeSlot();
 static void addSensor(uint8_t numberOfSlot);
 static void removeSensor(uint8_t numberOfSlot);
 static void changeRadioSlotChannel(uint8_t channel);
+static inline bool isPacketData(data_packet_t* packetPtr);
+static inline bool isPacketInit(init_packet_t* packetPtr);
 
 // =======================================================================================
 __WEAK void dataReadyCallback(data_packet_t** packets, uint8_t amountOfConnectedSensors)
@@ -50,78 +57,72 @@ __WEAK void dataReadyCallback(data_packet_t** packets, uint8_t amountOfConnected
 }
 
 // =======================================================================================
-Protocol* initProtocol(Radio* radioDrv)
+Protocol* initProtocol(Radio* radioDrv, Rtc* rtc0Drv, Rtc* rtc1Drv)
 {
 	Protocol *protocol = malloc(sizeof(Protocol));
 	protocol->setFreqCollectData = setFreqCollectData;
 	protocol->startListening = startListening;
 
 	radio = radioDrv;
+	rtc0 = rtc0Drv;
+	rtc1 = rtc1Drv;
 
-	RTC0_SUF_init();
-	RTC1_timeSlotsInit();
+	sufInit();
+	timeSlotsInit();
 	initPPI();
 
 	return protocol;
 }
 
 // =======================================================================================
-static void RTC0_SUF_init()
+static void sufInit()
 {
-	RTC0->CC[0] = 65;			// number of RTC0 impulses after which starts determining the time slots are by RTC1
-	RTC0->CC[1] = 1638;			// determination of the SUF
-
-	RTC0->PRESCALER = 0;
-
-	RTC0->EVTENSET = RTC_EVTENSET_COMPARE0_Enabled << RTC_EVTENSET_COMPARE0_Pos;
-	RTC0->INTENSET = RTC_INTENSET_COMPARE0_Enabled << RTC_INTENSET_COMPARE0_Pos;
-	RTC0->EVTENSET = RTC_EVTENSET_COMPARE1_Enabled << RTC_EVTENSET_COMPARE1_Pos;
-	RTC0->INTENSET = RTC_INTENSET_COMPARE1_Enabled << RTC_INTENSET_COMPARE1_Pos;
+	rtc0->setCCreg(rtc0, RTC_CHANNEL0, 65);			// number of RTC0 impulses after which starts determining the time slots are by RTC1
+	rtc0->setCCreg(rtc0, RTC_CHANNEL1, 1638);			// determination of the SUF
+	rtc0->setPrescaler(rtc0, 0);
+	rtc0->compareEventEnable(rtc0, RTC_CHANNEL0);
+	rtc0->compareInterruptEnable(rtc0, RTC_CHANNEL0);
+	rtc0->compareEventEnable(rtc0, RTC_CHANNEL1);
+	rtc0->compareInterruptEnable(rtc0, RTC_CHANNEL1);
 
 	NVIC_SetPriority(RTC0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), HIGH_IRQ_PRIO, RTC0_IRQ_PRIORITY));
 	NVIC_EnableIRQ(RTC0_IRQn);
 
-	RTC0->TASKS_CLEAR = 1U;
+	rtc0->start(rtc0);
 }
 
 // =======================================================================================
-static inline void RTC1_timeSlotsInit()
+static inline void timeSlotsInit()
 {
-	RTC1->PRESCALER = 0;
-
-	RTC1->EVTENSET = RTC_EVTENSET_COMPARE0_Enabled << RTC_EVTENSET_COMPARE0_Pos;
-	RTC1->INTENSET = RTC_INTENSET_COMPARE0_Enabled << RTC_INTENSET_COMPARE0_Pos;
+	rtc1->setPrescaler(rtc1, 0);
+	rtc1->compareEventEnable(rtc1, RTC_CHANNEL0);
+	rtc1->compareInterruptEnable(rtc1, RTC_CHANNEL0);
 
 	NVIC_SetPriority(RTC1_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), HIGH_IRQ_PRIO, RTC1_IRQ_PRIORITY));
 	NVIC_EnableIRQ(RTC1_IRQn);
 
-	RTC1->CC[0] = 392;
-	RTC1->TASKS_CLEAR = 1U;
+	rtc1->setCCreg(rtc1, RTC_CHANNEL0, 392);
+	rtc1->start(rtc1);
 }
 
 // =======================================================================================
 static inline void initPPI()
 {
 	// when SYNC slot is over then start RTC1 for time slots
-	PPI->CH[0].EEP = (uint32_t) &RTC0->EVENTS_COMPARE[0];
-	PPI->CH[0].TEP = (uint32_t) &RTC1->TASKS_START;
-	PPI->CHENSET = PPI_CHENSET_CH0_Enabled << PPI_CHENSET_CH0_Pos;
+	nrf_ppi_channel_endpoint_setup(NRF_PPI_CHANNEL0, (uint32_t) &RTC0->EVENTS_COMPARE[0], (uint32_t) &RTC1->TASKS_START);
+	nrf_ppi_channel_enable(NRF_PPI_CHANNEL0);
 
 	// when SUF is over start again
-	PPI->CH[1].EEP = (uint32_t) &RTC0->EVENTS_COMPARE[1];
-	PPI->CH[1].TEP = (uint32_t) &RTC0->TASKS_CLEAR;
-	PPI->CHENSET = PPI_CHENSET_CH1_Enabled << PPI_CHENSET_CH1_Pos;
+	nrf_ppi_channel_endpoint_setup(NRF_PPI_CHANNEL1, (uint32_t) &RTC0->EVENTS_COMPARE[1], (uint32_t) &RTC0->TASKS_CLEAR);
+	nrf_ppi_channel_enable(NRF_PPI_CHANNEL1);
 
 	// when SUF is over then STOP and CLEAR RTC1
-	PPI->CH[2].EEP = (uint32_t) &RTC0->EVENTS_COMPARE[1];
-	PPI->CH[2].TEP = (uint32_t) &RTC1->TASKS_STOP;
-	PPI->FORK[2].TEP = (uint32_t) &RTC1->TASKS_CLEAR;
-	PPI->CHENSET = PPI_CHENSET_CH2_Enabled << PPI_CHENSET_CH2_Pos;
+	nrf_ppi_channel_and_fork_endpoint_setup(NRF_PPI_CHANNEL2, (uint32_t) &RTC0->EVENTS_COMPARE[1], (uint32_t) &RTC1->TASKS_STOP, (uint32_t) &RTC1->TASKS_CLEAR);
+	nrf_ppi_channel_enable(NRF_PPI_CHANNEL2);
 
 	// when given time slot is over then CLEAR RTC1 and start again with the next time slot
-	PPI->CH[3].EEP = (uint32_t) &RTC1->EVENTS_COMPARE[0];
-	PPI->CH[3].TEP = (uint32_t) &RTC1->TASKS_CLEAR;
-	PPI->CHENSET = PPI_CHENSET_CH3_Enabled << PPI_CHENSET_CH3_Pos;
+	nrf_ppi_channel_endpoint_setup(NRF_PPI_CHANNEL3, (uint32_t) &RTC1->EVENTS_COMPARE[0], (uint32_t) &RTC1->TASKS_CLEAR);
+	nrf_ppi_channel_enable(NRF_PPI_CHANNEL3);
 }
 
 // =======================================================================================
@@ -129,8 +130,7 @@ inline void startListening()
 {
 	radio->setPacketPtr((uint32_t)packet);
 	radio->rxEnable();								// Enable radio and wait for ready
-	
-	RTC0->TASKS_START = 1U;
+	rtc0->start(rtc0);
 }
 
 // =======================================================================================
@@ -142,18 +142,18 @@ inline void radioHostHandler()
 		
 		if(radio->checkCRC())
 		{
-			if(PACKET_data == dataPacketPtr->packetType)
+			if(isPacketData(packetAsData))
 			{
-				memcpy((void*)packets[dataPacketPtr->channel], packet, sizeof(data_packet_t));
+				memcpy((void*)packets[packetAsData->channel], packet, sizeof(data_packet_t));
 
-				if(1 == dataPacketPtr->disconnect)
+				if(1 == packetAsData->disconnect)
 				{
-					removeSensor(dataPacketPtr->channel);
-					approvals |= (1 << dataPacketPtr->channel);
+					removeSensor(packetAsData->channel);
+					approvals |= (1 << packetAsData->channel);
 				}
 			}
 			
-			else if(PACKET_init == dataPacketPtr->packetType)
+			else if(isPacketInit(packetAsInit))
 			{
 				uint8_t freeSlot = findFreeTimeSlot();
 				
@@ -199,11 +199,11 @@ static void removeSensor(uint8_t numberOfSlot)
 // =======================================================================================
 static void prepareInitPacket(uint8_t numberOfSlot)
 {
-	initPacketPtr->channel = numberOfSlot;							// przypisanie id sensora
-	initPacketPtr->payloadSize = sizeof(init_packet_t);
-	initPacketPtr->packetType = PACKET_init;
-	initPacketPtr->rtc_val_CC0 = rtc_val_CC0_base * ( (2 * (numberOfSlot + 1)) - 1);
-	initPacketPtr->rtc_val_CC1 = rtc_val_CC1;
+	packetAsInit->channel = numberOfSlot;							// przypisanie id sensora
+	packetAsInit->payloadSize = sizeof(init_packet_t);
+	packetAsInit->packetType = PACKET_init;
+	packetAsInit->rtc_val_CC0 = rtc_val_CC0_base * ( (2 * (numberOfSlot + 1)) - 1);
+	packetAsInit->rtc_val_CC1 = rtc_val_CC1;
 }
 
 // =======================================================================================
@@ -230,14 +230,14 @@ inline void syncTransmitHandler()
 // =======================================================================================
 static inline void prepareSyncPacket()
 {
-	syncPacketPtr->payloadSize = sizeof(sync_packet_t) - 1;
-	syncPacketPtr->packetType = PACKET_sync;
-	syncPacketPtr->rtc_val_CC0 = 0;
-	syncPacketPtr->rtc_val_CC1 = 0;
+	packetAsSync->payloadSize = sizeof(sync_packet_t) - 1;
+	packetAsSync->packetType = PACKET_sync;
+	packetAsSync->rtc_val_CC0 = 0;
+	packetAsSync->rtc_val_CC1 = 0;
 
-	syncPacketPtr->approvals = approvals;
-	syncPacketPtr->txPower = txPower;
-	syncPacketPtr->turnOff = turnOff;
+	packetAsSync->approvals = approvals;
+	packetAsSync->txPower = txPower;
+	packetAsSync->turnOff = turnOff;
 }
 
 // =======================================================================================
@@ -275,6 +275,16 @@ static void changeRadioSlotChannel(uint8_t channel)
 	radio->setChannel(channel);
 	radio->clearFlags();
 	radio->rxEnable();								// Enable radio and wait for ready
+}
+
+static inline bool isPacketData(data_packet_t* packetPtr)
+{
+	return PACKET_data == packetPtr->packetType;
+}
+
+static inline bool isPacketInit(init_packet_t* packetPtr)
+{
+	return PACKET_init == packetPtr->packetType;
 }
 
 // =======================================================================================

@@ -4,6 +4,15 @@
 #include <stdint.h>
 #include "nrf.h"
 
+typedef enum
+{
+    RTC_CHANNEL0,
+	RTC_CHANNEL1,
+	RTC_CHANNEL2,
+	RTC_CHANNEL3,
+
+} rtc_channel_t;
+
 typedef struct{
 
 	NRF_RTC_Type* RTCx;

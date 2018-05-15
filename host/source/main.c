@@ -3,6 +3,7 @@
 #include "protocol_host.h"
 #include "mydefinitions.h"
 #include "uart.h"
+#include "rtc.h"
 #include "nrf.h"
 
 #include <stdio.h>
@@ -15,7 +16,10 @@ int main(void)
 	boardInit();
 	lcdProtocolInit();
 	Radio *radio = radioHostInit();
-	Protocol *protocol = initProtocol(radio);
+	Rtc* rtc0 = rtcInit(RTC0);
+	Rtc* rtc1 = rtcInit(RTC1);
+
+	Protocol *protocol = initProtocol(radio, rtc0, rtc1);
 
 	protocol->setFreqCollectData(FREQ_COLLECT_DATA_20Hz);
 	protocol->startListening();

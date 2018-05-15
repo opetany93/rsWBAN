@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "radio.h"
+#include "rtc.h"
 #include "ADXL362.h"
 
 #include "packetStructures.h"
@@ -45,7 +46,7 @@ typedef struct{
 }Protocol;
 
 // =================================== Functions ==========================================
-Protocol* initProtocol(Radio* radioDrv);
+Protocol* initProtocol(Radio* radioDrv, Rtc* rtc0Drv, Rtc* rtc1Drv);
 
 void lcdProtocolInit(void);
 
