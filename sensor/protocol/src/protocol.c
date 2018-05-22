@@ -225,7 +225,7 @@ inline void timeSlotHandler()
 	prepareDataPacket();
 	timeSlotCallback(dataPacketPtr);
 
-	if (sufCnt > 49)
+	if ((sufCnt > 49) || (!connectedFlag))
 	{
 		rtc->setCCreg(rtc, 1, valCC1 - 60);
 	}
@@ -266,7 +266,7 @@ static inline void prepareDataPacket()
 //=======================================================================================
 inline void syncHandler()
 {
-	if (sufCnt > 49)
+	if ((sufCnt > 49) || (!connectedFlag))
 	{
 		radio->setChannel(SYNC_CHANNEL);
 		syncFlag = 1;
