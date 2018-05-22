@@ -202,8 +202,8 @@ static void prepareInitPacket(uint8_t numberOfSlot)
 	packetAsInit->channel = numberOfSlot;							// przypisanie id sensora
 	packetAsInit->payloadSize = sizeof(init_packet_t);
 	packetAsInit->packetType = PACKET_init;
-	packetAsInit->rtc_val_CC0 = rtc_val_CC0_base * ( (2 * (numberOfSlot + 1)) - 1);
-	packetAsInit->rtc_val_CC1 = rtc_val_CC1;
+	packetAsInit->rtcValCC0 = rtc_val_CC0_base * ( (2 * (numberOfSlot + 1)) - 1);
+	packetAsInit->rtcValCC1 = rtc_val_CC1;
 }
 
 // =======================================================================================
@@ -232,8 +232,8 @@ static inline void prepareSyncPacket()
 {
 	packetAsSync->payloadSize = sizeof(sync_packet_t) - 1;
 	packetAsSync->packetType = PACKET_sync;
-	packetAsSync->rtc_val_CC0 = 0;
-	packetAsSync->rtc_val_CC1 = 0;
+	packetAsSync->rtcValCC0 = 0;
+	packetAsSync->rtcValCC1 = 0;
 
 	packetAsSync->approvals = approvals;
 	packetAsSync->txPower = txPower;
