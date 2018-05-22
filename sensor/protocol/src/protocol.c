@@ -73,7 +73,7 @@ protocol_status_t connect(void)
 			connectedFlag = 1;
 
 			PPI_Init();
-			setRtc(initPacketPtr->rtc_val_CC0, initPacketPtr->rtc_val_CC1);
+			setRtc(initPacketPtr->rtcValCC0, initPacketPtr->rtcValCC1);
 
 			if(waitForSync(200))
 			{

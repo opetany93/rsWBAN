@@ -17,7 +17,7 @@ int x1, y1;
 
 static void lcd_SpinningLine(void);
 
-volatile uint8_t temp = 0;
+volatile uint8_t slotCnt = 0;
 
 // ===================================================================================
 void RADIO_IRQHandler(void)
@@ -55,22 +55,16 @@ void RTC1_IRQHandler()								// time slot for sensor
 	{
 		RTC1->EVENTS_COMPARE[0] = 0;
 		
-		if ((temp >= 0) && (temp < 3))
-		{
-			NRF_GPIO->OUTSET = (1 << 31);
-			NRF_GPIO->OUTCLR = (1 << 31);
+		timeSlotListenerHandler();
 
-			timeSlotListenerHandler();
-		}
-
-		if(temp > 1)
+		if(slotCnt > 1)								// ostatni¹ szczelinê koñczy koniec ramki SUF, dlatego potrzebne jest zliczanie do 3, ¿eby nie wyskoczy³o przerwanie przed koñcem SUF
 		{
 			RTC1->TASKS_STOP = 1U;
-			temp = 0;
+			slotCnt = 0;
 		}
 		else
 		{
-			temp++;
+			slotCnt++;
 		}
 	}
 }
