@@ -259,9 +259,9 @@ inline void timeSlotListenerHandler()
 		nrf_gpio_pin_toggle(ARDUINO_1_PIN);
 
 	}
-	else if( channel != ADVERTISEMENT_CHANNEL )
+	else if( channel != BROADCAST_CHANNEL )
 	{
-		changeRadioSlotChannel(ADVERTISEMENT_CHANNEL);
+		changeRadioSlotChannel(BROADCAST_CHANNEL);
 		nrf_gpio_pin_toggle(ARDUINO_2_PIN);
 	}
 

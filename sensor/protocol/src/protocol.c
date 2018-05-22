@@ -63,7 +63,7 @@ protocol_status_t connect(void)
 		dataPacketPtr->payloadSize = 1;
 		dataPacketPtr->packetType = PACKET_init;
 
-		radio->setChannel(ADVERTISEMENT_CHANNEL); 						// Frequency bin 30, 2430MHz
+		radio->setChannel(BROADCAST_CHANNEL); 						// Frequency bin 30, 2430MHz
 
 		connectStatus = tryConnect();
 
