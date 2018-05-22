@@ -17,6 +17,9 @@ static init_packet_t* initPacketPtr = (init_packet_t* )packet;
 static sync_packet_t* syncPacketPtr = (sync_packet_t* )packet;
 
 volatile uint8_t channel, syncFlag, connectedFlag = 0;
+static volatile uint8_t sufCnt = 0;
+
+static uint32_t valCC1;
 
 Radio* radio = NULL;
 Rtc* rtc = NULL;
@@ -63,7 +66,7 @@ protocol_status_t connect(void)
 		dataPacketPtr->payloadSize = 1;
 		dataPacketPtr->packetType = PACKET_init;
 
-		radio->setChannel(ADVERTISEMENT_CHANNEL); 						// Frequency bin 30, 2430MHz
+		radio->setChannel(BROADCAST_CHANNEL); 						// Frequency bin 30, 2430MHz
 
 		connectStatus = tryConnect();
 
@@ -73,13 +76,14 @@ protocol_status_t connect(void)
 			connectedFlag = 1;
 
 			PPI_Init();
-			setRtc(initPacketPtr->rtc_val_CC0, initPacketPtr->rtc_val_CC1);
+			setRtc(initPacketPtr->rtcValCC0, initPacketPtr->rtcValCC1);
+
+			rtc->clear(rtc);
 
 			if(waitForSync(200))
 			{
-				radio->setChannel(channel);
-				rtc->clear(rtc);
 				rtc->start(rtc);
+				radio->setChannel(channel);
 				radio->setPacketPtr((uint32_t)packet);
 				radio->endInterruptEnable();
 				radio->readyToStartShortcutSet();
@@ -146,8 +150,9 @@ static void PPI_Init()
 //=======================================================================================
 static void setRtc(uint32_t valueOfCC0, uint32_t valueOfCC1)
 {
+	valCC1 = valueOfCC1;
+
 	rtc->setCCreg(rtc, 0, valueOfCC0);
-	rtc->setCCreg(rtc, 1, valueOfCC1);
 	rtc->setPrescaler(rtc, 0);
 	rtc->compareEventEnable(rtc, 0);
 	rtc->compareInterruptEnable(rtc, 0);
@@ -220,12 +225,28 @@ inline void timeSlotHandler()
 	prepareDataPacket();
 	timeSlotCallback(dataPacketPtr);
 
+	if (sufCnt > 49)
+	{
+		rtc->setCCreg(rtc, 1, valCC1 - 60);
+	}
+	else
+	{
+		if (0 == sufCnt)
+		{
+			rtc->setCCreg(rtc, 1, valCC1 - 10);
+		}
+		else
+		{
+			rtc->setCCreg(rtc, 1, valCC1);
+		}
+	}
+
 	while (!isHFCLKstable())				// wait for stable HCLK which has been started via RTC0 event through PPI
 		;
 	
 	radio->txEnable();
 
-	gpioGeneratePulse(SCL_PIN);
+	//gpioGeneratePulse(SCL_PIN);
 }
 
 //=======================================================================================
@@ -245,15 +266,29 @@ static inline void prepareDataPacket()
 //=======================================================================================
 inline void syncHandler()
 {
-	radio->setChannel(SYNC_CHANNEL);
-	syncFlag = 1;
+	if (sufCnt > 49)
+	{
+		radio->setChannel(SYNC_CHANNEL);
+		syncFlag = 1;
+		sufCnt = 0;
+
+		if ( 0 > startHFCLK() )
+			error();
+
+		//gpioGeneratePulse(SCL_PIN);
+
+		radio->rxEnable();
+	}
+	else
+	{
+		gpioGeneratePulse(SCL_PIN);
+		//nrf_gpio_pin_toggle(SCL_PIN);
+
+		rtc->clear(rtc);
+		sufCnt++;
+	}
 	
-	if ( 0 > startHFCLK() )
-		error();
-	
-	radio->rxEnable();
-	
-	gpioGeneratePulse(SCL_PIN);
+	//gpioGeneratePulse(SCL_PIN);
 	LED_2_TOGGLE();
 }
 //=======================================================================================

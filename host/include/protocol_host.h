@@ -13,7 +13,7 @@
 #define FREQ_COLLECT_DATA_10Hz						3
 #define FREQ_COLLECT_DATA_20Hz						4
 
-#define ADVERTISEMENT_CHANNEL						30UL
+#define BROADCAST_CHANNEL							30UL
 #define FIRST_CHANNEL								0UL
 #define SYNC_CHANNEL								29UL
 

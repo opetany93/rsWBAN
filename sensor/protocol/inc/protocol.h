@@ -5,7 +5,7 @@
 #include "rtc.h"
 #include "packetStructures.h"
 
-#define ADVERTISEMENT_CHANNEL					30UL
+#define BROADCAST_CHANNEL					30UL
 #define FIRST_CHANNEL							0UL
 #define SYNC_CHANNEL							29UL
 

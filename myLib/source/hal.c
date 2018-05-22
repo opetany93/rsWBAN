@@ -33,7 +33,8 @@ static void initGpio()
 #if defined(NRF52_SENSOR)
 	//nrf_gpio_cfg_output(LED_1);
 	nrf_gpio_cfg_output(LED_2);
-	//nrf_gpio_cfg_output(SCL_PIN);
+	nrf_gpio_cfg_output(SCL_PIN);
+	//nrf_gpio_cfg_output(SDA_PIN);
 
 	//nrf_gpio_pin_set(LED_1);
 	nrf_gpio_pin_set(LED_2);

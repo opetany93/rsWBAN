@@ -5,8 +5,8 @@ typedef struct{
 	
 	uint8_t		payloadSize;
 	uint8_t 	packetType;
-	uint16_t 	rtc_val_CC0;
-	uint16_t 	rtc_val_CC1;
+	uint16_t 	rtcValCC0;
+	uint16_t 	rtcValCC1;
 	uint8_t		txPower;				//	value in dBm
 	uint8_t		approvals;
 	uint8_t		turnOff;
@@ -17,8 +17,8 @@ typedef struct{
 	
 	uint8_t			payloadSize;
 	uint8_t 		packetType;
-	uint16_t 		rtc_val_CC0;
-	uint32_t 		rtc_val_CC1;
+	uint16_t 		rtcValCC0;
+	uint16_t 		rtcValCC1;
 	uint8_t 		channel;
 	
 }init_packet_t;

@@ -78,7 +78,7 @@ Protocol* initProtocol(Radio* radioDrv, Rtc* rtc0Drv, Rtc* rtc1Drv)
 static void sufInit()
 {
 	rtc0->setCCreg(rtc0, RTC_CHANNEL0, 65);			// number of RTC0 impulses after which starts determining the time slots are by RTC1
-	rtc0->setCCreg(rtc0, RTC_CHANNEL1, 1638);			// determination of the SUF
+	rtc0->setCCreg(rtc0, RTC_CHANNEL1, 1638);		// determination of the SUF
 	rtc0->setPrescaler(rtc0, 0);
 	rtc0->compareEventEnable(rtc0, RTC_CHANNEL0);
 	rtc0->compareInterruptEnable(rtc0, RTC_CHANNEL0);
@@ -202,8 +202,8 @@ static void prepareInitPacket(uint8_t numberOfSlot)
 	packetAsInit->channel = numberOfSlot;							// przypisanie id sensora
 	packetAsInit->payloadSize = sizeof(init_packet_t);
 	packetAsInit->packetType = PACKET_init;
-	packetAsInit->rtc_val_CC0 = rtc_val_CC0_base * ( (2 * (numberOfSlot + 1)) - 1);
-	packetAsInit->rtc_val_CC1 = rtc_val_CC1;
+	packetAsInit->rtcValCC0 = rtc_val_CC0_base * ( (2 * (numberOfSlot + 1)) - 1);
+	packetAsInit->rtcValCC1 = rtc_val_CC1;
 }
 
 // =======================================================================================
@@ -215,7 +215,8 @@ inline void syncTransmitHandler()
 	
 	prepareSyncPacket();
 
-	nrf_gpio_pin_toggle(ARDUINO_0_PIN);
+	//nrf_gpio_pin_toggle(ARDUINO_0_PIN);
+	gpioGeneratePulse(ARDUINO_0_PIN);
 
 	radio->sendPacket((uint32_t *)packet);							// send sync packet
 	radio->disableRadio();
@@ -232,8 +233,8 @@ static inline void prepareSyncPacket()
 {
 	packetAsSync->payloadSize = sizeof(sync_packet_t) - 1;
 	packetAsSync->packetType = PACKET_sync;
-	packetAsSync->rtc_val_CC0 = 0;
-	packetAsSync->rtc_val_CC1 = 0;
+	packetAsSync->rtcValCC0 = 0;
+	packetAsSync->rtcValCC1 = 0;
 
 	packetAsSync->approvals = approvals;
 	packetAsSync->txPower = txPower;
@@ -259,9 +260,9 @@ inline void timeSlotListenerHandler()
 		nrf_gpio_pin_toggle(ARDUINO_1_PIN);
 
 	}
-	else if( channel != ADVERTISEMENT_CHANNEL )
+	else if( channel != BROADCAST_CHANNEL )
 	{
-		changeRadioSlotChannel(ADVERTISEMENT_CHANNEL);
+		changeRadioSlotChannel(BROADCAST_CHANNEL);
 		nrf_gpio_pin_toggle(ARDUINO_2_PIN);
 	}
 
@@ -349,7 +350,9 @@ void setFreqCollectData(uint8_t freq)
 		
 		case FREQ_COLLECT_DATA_20Hz:
 			rtc_val_CC0_base = 205;
-			rtc_val_CC1 = 1606;
+//			rtc_val_CC1 = 1606;
+//			rtc_val_CC1 = 1596;		// 10 less beacuse is compensated time of sending and receiving of sync packet
+			rtc_val_CC1 = 1638;
 //			RTC0->CC[0] = 1638;
 //			RTC1->CC[0] = 410;
 		
