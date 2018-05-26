@@ -1,5 +1,8 @@
-#ifndef PACKETS_STRUCTURES_H_
-#define PACKETS_STRUCTURES_H_
+#ifndef PACKETS_H_
+#define PACKETS_H_
+
+#include "stdint.h"
+#include "stdbool.h"
 
 typedef struct{
 	
@@ -35,5 +38,20 @@ typedef struct{
 	uint8_t 		data[6];
 	
 }data_packet_t;
+
+typedef enum
+{
+	PACKET_data									= 0x00U,
+	PACKET_init       							= 0x55U,
+	PACKET_sync									= 0xAAU
+
+} PACKET_type_t;
+
+//=======================================================================================
+bool isPacketSync(sync_packet_t* packetPtr);
+bool checkApprovals(sync_packet_t* packetPtr, uint8_t channel);
+bool isPacketInit(init_packet_t* packetPtr);
+bool isPacketData(data_packet_t* packetPtr);
+
 
 #endif

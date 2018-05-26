@@ -6,7 +6,7 @@
 #include "rtc.h"
 #include "ADXL362.h"
 
-#include "packetStructures.h"
+#include "packets.h"
 
 #define FREQ_COLLECT_DATA_100mHz					1
 #define FREQ_COLLECT_DATA_1Hz						2
@@ -18,14 +18,6 @@
 #define SYNC_CHANNEL								29UL
 
 #define LENGTH_PACKET_FOR_TESTS 					30
-
-typedef enum 
-{
-	PACKET_data									= 0x00U,
-	PACKET_init       							= 0x55U,
-	PACKET_sync									= 0xAAU
-
-} PACKET_type_t;
 
 typedef enum
 {
@@ -40,7 +32,7 @@ typedef enum
 
 typedef struct{
 
-	void (*startListening)(void);
+	void (*start)(void);
 	void (*setFreqCollectData)(uint8_t freq);
 
 }Protocol;

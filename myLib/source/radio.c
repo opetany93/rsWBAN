@@ -331,7 +331,7 @@ static inline void disableRadio(void)
 inline void timeoutInterruptHandler(void)
 {
 	timeoutFlag = 1;
-	nrf_timer_task_trigger(TIMER0, NRF_TIMER_TASK_STOP);
+	nrf_timer_task_trigger(TIMER0, NRF_TIMER_TASK_SHUTDOWN);
 }
 
 static inline bool isRxIdleState()

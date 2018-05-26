@@ -3,21 +3,13 @@
 
 #include "radio.h"
 #include "rtc.h"
-#include "packetStructures.h"
+#include "packets.h"
 
 #define BROADCAST_CHANNEL						30UL
 #define FIRST_CHANNEL							0UL
 #define SYNC_CHANNEL							29UL
 
 #define LENGTH_PACKET_FOR_TESTS 				15
-
-typedef enum 
-{
-	PACKET_data									= 0x00U,
-	PACKET_init       							= 0x55U,
-	PACKET_sync									= 0xAAU
-
-} PACKET_type_t;
 
 typedef enum
 {

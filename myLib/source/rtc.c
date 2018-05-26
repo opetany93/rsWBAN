@@ -24,14 +24,14 @@ static inline void setCCreg(void* rtc, uint8_t number, uint32_t value)
 	nrf_rtc_cc_set(((Rtc*)rtc)->RTCx, number, value);
 }
 
-void compareEventEnable(void* rtc, uint8_t nbrOfCompare)
+void compareEventEnable(void* rtc, rtc_channel_t channel)
 {
-	nrf_rtc_event_enable(((Rtc*)rtc)->RTCx, (1 << (RTC_EVTENSET_COMPARE0_Pos + nbrOfCompare)));
+	nrf_rtc_event_enable(((Rtc*)rtc)->RTCx, (1 << (RTC_EVTENSET_COMPARE0_Pos + channel)));
 }
 
-void compareInterruptEnable(void* rtc, uint8_t nbrOfCompare)
+void compareInterruptEnable(void* rtc, rtc_channel_t channel)
 {
-	nrf_rtc_int_enable(((Rtc*)rtc)->RTCx, (1 << (RTC_EVTENSET_COMPARE0_Pos + nbrOfCompare)));
+	nrf_rtc_int_enable(((Rtc*)rtc)->RTCx, (1 << (RTC_EVTENSET_COMPARE0_Pos + channel)));
 }
 
 Rtc* rtcInit(NRF_RTC_Type* RTCx)

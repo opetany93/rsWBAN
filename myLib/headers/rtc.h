@@ -20,8 +20,8 @@ typedef struct{
 	void (*start)(void* rtc);
 	void (*setPrescaler)(void* rtc, uint16_t presc);
 	void (*setCCreg)(void* rtc, uint8_t number, uint32_t value);
-	void (*compareEventEnable)(void* rtc, uint8_t nbrOfCompare);
-	void (*compareInterruptEnable)(void* rtc, uint8_t nbrOfCompare);
+	void (*compareEventEnable)(void* rtc, rtc_channel_t channel);
+	void (*compareInterruptEnable)(void* rtc, rtc_channel_t channel);
 	
 }Rtc;
 

@@ -22,7 +22,7 @@ int main(void)
 	Protocol *protocol = initProtocol(radio, rtc0, rtc1);
 
 	protocol->setFreqCollectData(FREQ_COLLECT_DATA_20Hz);
-	protocol->startListening();
+	protocol->start();
 
 	while(1)
 	{

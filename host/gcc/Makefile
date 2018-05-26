@@ -32,6 +32,7 @@ ifeq ($(PLATFORM), NRF52_HOST)
 	
 	SRC_FILES += \
 		$(wildcard $(abspath ../../myLib/source/*.c)) \
+		$(wildcard $(abspath ../../myLib/protocol/src/*.c)) \
     	$(SDK_ROOT)/components/boards/boards.c
     	
 else ifeq ($(PLATFORM), NRF52_SENSOR)

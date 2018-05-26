@@ -7,13 +7,10 @@
 #include "mydefinitions.h"
 #include "hal.h"
 #include <stddef.h>
-#include <stdbool.h>
 
 #define ATTEMPTS_OF_CONNECT		20
 
 char packet[PACKET_SIZE];
-static data_packet_t* dataPacketPtr = (data_packet_t* )packet;
-static init_packet_t* initPacketPtr = (init_packet_t* )packet;
 static sync_packet_t* syncPacketPtr = (sync_packet_t* )packet;
 
 volatile uint8_t channel, syncFlag, connectedFlag = 0;
@@ -22,14 +19,12 @@ Radio* radio = NULL;
 Rtc* rtc = NULL;
 
 // --------------- internal functions -------------
-static void PPI_Init();
-static void setRtc(uint32_t valueOfCC0, uint32_t valueOfCC1);
+static void initPPI();
+static void configRtc();
+static void setRtcValues(init_packet_t* initPacket);
 static bool waitForSync(uint16_t ms);
-static inline bool isPacketInit(init_packet_t* packetPtr);
-static inline bool isPacketSync(sync_packet_t* packetPtr);
-static inline bool checkApprovals(sync_packet_t* packetPtr);
-static inline void prepareDataPacket();
-static inline protocol_status_t tryConnect();
+static inline void prepareDataPacket(data_packet_t* dataPacket);
+static inline protocol_status_t tryConnect(init_packet_t* initPacket);
 // -------------------------------------------------
 
 __WEAK void timeSlotCallback(data_packet_t* dataPacketPtr)
@@ -42,6 +37,8 @@ void initProtocol(Radio* radioDrv, Rtc* rtcDrv)
 {
 	radio = radioDrv;
 	rtc = rtcDrv;
+
+	configRtc();
 }
 
 //=======================================================================================
@@ -56,30 +53,26 @@ void deInitProtocol()
 protocol_status_t connect(void)
 {
 	protocol_status_t connectStatus = DISCONNECTED;
+	init_packet_t* initPacketPtr = (init_packet_t* )packet;
 	
 	if(!connectedFlag)
 	{
 		startHFCLK();
-		dataPacketPtr->payloadSize = 1;
-		dataPacketPtr->packetType = PACKET_init;
-
 		radio->setChannel(BROADCAST_CHANNEL); 						// Frequency bin 30, 2430MHz
-
-		connectStatus = tryConnect();
+		connectStatus = tryConnect(initPacketPtr);
 
 		if(CONNECTED == connectStatus)
 		{
 			channel = initPacketPtr->channel;
 			connectedFlag = 1;
 
-			PPI_Init();
-			setRtc(initPacketPtr->rtcValCC0, initPacketPtr->rtcValCC1);
+			initPPI();
+			setRtcValues(initPacketPtr);
 
 			if(waitForSync(200))
 			{
-				radio->setChannel(channel);
-				rtc->clear(rtc);
 				rtc->start(rtc);
+				radio->setChannel(channel);
 				radio->setPacketPtr((uint32_t)packet);
 				radio->endInterruptEnable();
 				radio->readyToStartShortcutSet();
@@ -105,11 +98,14 @@ protocol_status_t connect(void)
 }
 
 //=======================================================================================
-static inline protocol_status_t tryConnect()
+static inline protocol_status_t tryConnect(init_packet_t* initPacket)
 {
 	protocol_status_t connectStatus = DISCONNECTED;
 	RADIO_status_t responseStatus = 4;
 	
+	initPacket->payloadSize = 1;
+	initPacket->packetType = PACKET_init;
+
 	for(uint8_t i = 0; (i < ATTEMPTS_OF_CONNECT) && (RADIO_OK !=  responseStatus); i++)
 	{
 		responseStatus = radio->sendPacketWithResponse((uint32_t *)packet, 15);
@@ -117,7 +113,7 @@ static inline protocol_status_t tryConnect()
 
 		if(RADIO_OK == responseStatus)
 		{
-			if(isPacketInit(initPacketPtr))
+			if(isPacketInit(initPacket))
 			{
 				connectStatus = CONNECTED;
 			}
@@ -131,8 +127,14 @@ static inline protocol_status_t tryConnect()
 	return connectStatus;
 }
 
+static inline void setRtcValues(init_packet_t* initPacket)
+{
+	rtc->setCCreg(rtc, 0, initPacket->rtcValCC0);
+	rtc->setCCreg(rtc, 1, initPacket->rtcValCC1);
+}
+
 //=======================================================================================
-static void PPI_Init()
+static void initPPI()
 {
 	// connect RTC0 COMPARE[0] EVENT to CLOCK HFCLKSTART TASK
 	nrf_ppi_channel_endpoint_setup(NRF_PPI_CHANNEL0, (uint32_t) &NRF_RTC0->EVENTS_COMPARE[0], (uint32_t) &NRF_CLOCK->TASKS_HFCLKSTART);
@@ -144,14 +146,13 @@ static void PPI_Init()
 }
 
 //=======================================================================================
-static void setRtc(uint32_t valueOfCC0, uint32_t valueOfCC1)
+static void configRtc()
 {
-	rtc->setCCreg(rtc, 0, valueOfCC0);
-	rtc->setCCreg(rtc, 1, valueOfCC1);
 	rtc->setPrescaler(rtc, 0);
 	rtc->compareEventEnable(rtc, 0);
 	rtc->compareInterruptEnable(rtc, 0);
 	rtc->compareInterruptEnable(rtc, 1);
+	rtc->clear(rtc);
 }
 
 //=======================================================================================
@@ -176,7 +177,7 @@ inline void radioSensorHandler()
 		{
 			if(isPacketSync(syncPacketPtr))
 			{
-				if(checkApprovals(syncPacketPtr))
+				if(checkApprovals(syncPacketPtr, channel))
 				{
 					SYSTEM_OFF();
 				}
@@ -197,28 +198,12 @@ inline void radioSensorHandler()
 }
 
 //=======================================================================================
-static inline bool isPacketSync(sync_packet_t* packetPtr)
-{
-	return PACKET_sync == packetPtr->packetType;
-}
-
-//=======================================================================================
-static inline bool checkApprovals(sync_packet_t* packetPtr)
-{
-	return packetPtr->approvals & (1 << channel);
-}
-
-//=======================================================================================
-static inline bool isPacketInit(init_packet_t* packetPtr)
-{
-	return PACKET_init == packetPtr->packetType;
-}
-
-//=======================================================================================
 inline void timeSlotHandler()
 {
-	prepareDataPacket();
-	timeSlotCallback(dataPacketPtr);
+	data_packet_t* dataPacket = (data_packet_t* )packet;
+
+	prepareDataPacket(dataPacket);
+	timeSlotCallback(dataPacket);
 
 	while (!isHFCLKstable())				// wait for stable HCLK which has been started via RTC0 event through PPI
 		;
@@ -229,16 +214,16 @@ inline void timeSlotHandler()
 }
 
 //=======================================================================================
-static inline void prepareDataPacket()
+static inline void prepareDataPacket(data_packet_t* dataPacket)
 {
-	dataPacketPtr->payloadSize = sizeof(data_packet_t) - 1;
-	dataPacketPtr->packetType = PACKET_data;
-	dataPacketPtr->channel = channel;
-	dataPacketPtr->numberOfPacket++;
+	dataPacket->payloadSize = sizeof(data_packet_t) - 1;
+	dataPacket->packetType = PACKET_data;
+	dataPacket->channel = channel;
+	dataPacket->numberOfPacket++;
 
 	if(!connectedFlag)
 	{
-		dataPacketPtr->disconnect = 1;
+		dataPacket->disconnect = 1;
 	}
 }
 

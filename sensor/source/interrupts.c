@@ -113,7 +113,7 @@ void TIMER1_IRQHandler(void)
 	if(nrf_timer_event_check(TIMER1, NRF_TIMER_EVENT_COMPARE0))
 	{
 		nrf_timer_event_clear(TIMER1, NRF_TIMER_EVENT_COMPARE0);
-		nrf_timer_task_trigger(TIMER1, NRF_TIMER_TASK_STOP);
+		nrf_timer_task_trigger(TIMER1, NRF_TIMER_TASK_SHUTDOWN);
 
 		if(0 == nrf_gpio_pin_read(BUTTON))
 		{
