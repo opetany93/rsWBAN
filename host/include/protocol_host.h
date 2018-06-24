@@ -39,11 +39,9 @@ typedef struct{
 }Protocol;
 
 // =================================== Functions ==========================================
-Protocol* initProtocol(Radio* radioDrv, Rtc* rtc0Drv, Rtc* rtc1Drv, HostCallbacks_t callbacks);
+Protocol* initProtocol(Radio* thisRadio, Rtc* thisRtc0, Rtc* thisRtc1, HostCallbacks_t thisCallbacks);
 
 void lcdProtocolInit(void);
-
-void dataReadyCallback(data_packet_t** packets, uint8_t amountOfConnectedSensors);
 
 void radioHostHandler(void);
 void timeSlotListenerHandler(void);

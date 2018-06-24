@@ -1,4 +1,8 @@
 #include "protocol.h"
+
+#include <stddef.h>
+#include <stdbool.h>
+
 #include "radio.h"
 #include "rtc.h"
 #include "clocks.h"
@@ -6,17 +10,13 @@
 #include "nrf_ppi.h"
 #include "mydefinitions.h"
 #include "hal.h"
-#include <stddef.h>
-
-#include "nrf_rtc.h"
-#include "nrf_spim.h"
-
 #include "protocolConf.h"
 
 char packet[PACKET_SIZE];
 static sync_packet_t* syncPacketPtr = (sync_packet_t* )packet;
 
-volatile uint8_t channel, syncFlag, connectedFlag = 0;
+volatile uint8_t channel;
+volatile bool connectedFlag = false, syncFlag = false;
 
 static Radio* radio = NULL;
 static Rtc* rtc = NULL;
@@ -33,11 +33,11 @@ static inline protocol_status_t tryConnect(init_packet_t* initPacket);
 // -------------------------------------------------
 
 //=======================================================================================
-void initProtocol(Radio* radioDrv, Rtc* rtcDrv, SensorCallbacks_t this)
+void initProtocol(Radio* thisRadio, Rtc* thisRtc, SensorCallbacks_t thisCallbacks)
 {
-	radio = radioDrv;
-	rtc = rtcDrv;
-	callbacks = this;
+	radio = thisRadio;
+	rtc = thisRtc;
+	callbacks = thisCallbacks;
 
 	configRtc();
 }
@@ -47,7 +47,7 @@ void deInitProtocol()
 {
 	LED_2_OFF();
 	radio->disableRadio();
-	connectedFlag = 0;
+	connectedFlag = false;
 }
 
 // =======================================================================================
@@ -65,7 +65,7 @@ protocol_status_t connect(void)
 		if(CONNECTED == connectStatus)
 		{
 			channel = initPacketPtr->channel;
-			connectedFlag = 1;
+			connectedFlag = true;
 
 			initPPI();
 			setRtcValues(initPacketPtr);
@@ -174,7 +174,7 @@ inline void radioSensorHandler()
 {
 	if(syncFlag)
 	{
-		syncFlag = 0;
+		syncFlag = false;
 
 		if(radio->checkCRC())
 		{
@@ -229,7 +229,7 @@ static inline void prepareDataPacket(data_packet_t* dataPacket)
 
 	if(!connectedFlag)
 	{
-		dataPacket->disconnect = 1;
+		dataPacket->disconnect = true;
 	}
 }
 
@@ -237,7 +237,7 @@ static inline void prepareDataPacket(data_packet_t* dataPacket)
 inline void syncHandler()
 {
 	radio->setChannel(SYNC_CHANNEL);
-	syncFlag = 1;
+	syncFlag = true;
 	
 	if ( 0 > startHFCLK() )
 		error();

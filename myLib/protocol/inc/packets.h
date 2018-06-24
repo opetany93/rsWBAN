@@ -32,7 +32,7 @@ typedef struct{
 	uint8_t 		packetType;
 	uint8_t			payloadSize;
 	uint8_t			numberOfPacket;
-	uint8_t			disconnect;
+	bool			disconnect;
 	uint8_t 		channel;
 	//int								pressure;
 	

@@ -13,8 +13,6 @@
 #include "nrf_spim.h"
 #include "nrf_gpio.h"
 #include "nrf_gpiote.h"
-#include "nrf_delay.h"
-#include "nrf_rtc.h"
 
 #define WRITE_CMD								0x0A
 #define READ_CMD								0x0B
@@ -84,7 +82,7 @@ void rtcForAdxl362Config(void)
 	rtcAdxl362->clear(rtcAdxl362);
 }
 
-static void initAdxl362()
+static void initAdxl362(void)
 {
 	initBuffer[0] = WRITE_CMD;
 	initBuffer[1] = ADXL362_POWER_CTL;
@@ -120,7 +118,7 @@ static void initAdxl362()
 	}
 }
 
-void syncCallback(void)
+static void syncCallback(void)
 {
 	for(uint8_t k = 0; k < 5; k++)
 	{
@@ -129,10 +127,10 @@ void syncCallback(void)
 
 	nrf_spim_rx_buffer_set(NRF_SPIM1,(uint8_t *) &adxl362ReadXYZSamplesBuffer, ONE_READ_BUFFER_SIZE);
 
-	nrf_rtc_task_trigger(rtcAdxl362->RTCx, NRF_RTC_TASK_START);
+	rtcAdxl362->start(rtcAdxl362);
 }
 
-void timeSlotCallback(data_packet_t* dataPacketPtr)
+static void timeSlotCallback(data_packet_t* dataPacketPtr)
 {
 	memcpy(dataPacketPtr->data, dataToSend, 30);
 }

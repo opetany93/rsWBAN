@@ -26,7 +26,7 @@ typedef struct{
 // =================================== Functions ==========================================
 protocol_status_t connect(void);
 
-void initProtocol(Radio* radioDrv, Rtc* rtcDrv, SensorCallbacks_t this);
+void initProtocol(Radio* thisRadio, Rtc* thisRtc, SensorCallbacks_t thisCallbacks);
 void deInitProtocol(void);
 
 void timeSlotHandler(void);

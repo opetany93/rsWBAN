@@ -5,13 +5,11 @@
 
 #include "radio.h"
 #include "lcd_Nokia5110.h"
-#include "mytypes.h"
 #include "mydefinitions.h"
 #include "hal.h"
 
 #include "nrf.h"
 #include "nrf_gpio.h"
-#include "nrf_rtc.h"
 #include "nrf_ppi.h"
 
 #include "protocolConf.h"
@@ -20,25 +18,20 @@ char packet[PACKET_SIZE];
 static data_packet_t* packetAsData = (data_packet_t* )packet;
 static init_packet_t* packetAsInit = (init_packet_t* )packet;
 static sync_packet_t* packetAsSync = (sync_packet_t* )packet;
-volatile data_packet_t* packets[4];
+static volatile data_packet_t* packets[4];
 
 static volatile uint8_t flagsOfConnectedSensors = 0;
 volatile uint8_t amountOfConnectedSensors = 0;
 
-static volatile uint8_t channel;
-
-volatile uint32_t rtc_val_CC0_base;
-volatile uint32_t rtc_val_CC1;
-
-volatile uint8_t txPower = 1, turnOff = 0, approvals = 0;
+static volatile uint32_t rtc_val_CC0_base, rtc_val_CC1;
+static volatile uint8_t txPower = 1, turnOff = 0, approvals = 0, channel;
 
 static Radio* radio = NULL;
 static Rtc* rtc0 = NULL;
 static Rtc* rtc1 = NULL;
+static Protocol protocol;
 
-static void start(void);
-static void setFreqCollectData(uint8_t freq);
-
+// --------------- internal functions -------------
 static void sufInit(void);
 static void timeSlotsInit(void);
 static void initPPI(void);
@@ -48,19 +41,21 @@ static uint8_t findFreeTimeSlot(void);
 static void addSensor(uint8_t numberOfSlot);
 static void removeSensor(uint8_t numberOfSlot);
 static void changeRadioSlotChannel(uint8_t channel);
+// -------------------------------------------------
 
-static Protocol protocol;
+static void start(void);
+static void setFreqCollectData(uint8_t freq);
 
 // =======================================================================================
-Protocol* initProtocol(Radio* radioDrv, Rtc* rtc0Drv, Rtc* rtc1Drv, HostCallbacks_t callbacks)
+Protocol* initProtocol(Radio* thisRadio, Rtc* thisRtc0, Rtc* thisRtc1, HostCallbacks_t thisCallbacks)
 {
-	protocol.callbacks = callbacks;
+	protocol.callbacks = thisCallbacks;
 	protocol.setFreqCollectData = setFreqCollectData;
 	protocol.start = start;
 
-	radio = radioDrv;
-	rtc0 = rtc0Drv;
-	rtc1 = rtc1Drv;
+	radio = thisRadio;
+	rtc0 = thisRtc0;
+	rtc1 = thisRtc1;
 
 	sufInit();
 	timeSlotsInit();
@@ -138,7 +133,7 @@ inline void radioHostHandler()
 			{
 				memcpy((void*)packets[packetAsData->channel], packet, sizeof(data_packet_t));
 
-				if(1 == packetAsData->disconnect)
+				if(true == packetAsData->disconnect)
 				{
 					removeSensor(packetAsData->channel);
 					approvals |= (1 << packetAsData->channel);
