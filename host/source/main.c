@@ -10,27 +10,6 @@
 
 extern char uartBuf[100];
 
-// =======================================================================================
-int main(void)
-{
-	boardInit();
-	lcdProtocolInit();
-	Radio *radio = radioHostInit();
-	Rtc* rtc0 = rtcInit(RTC0);
-	Rtc* rtc1 = rtcInit(RTC1);
-
-	Protocol *protocol = initProtocol(radio, rtc0, rtc1);
-
-	protocol->setFreqCollectData(FREQ_COLLECT_DATA_20Hz);
-	protocol->start();
-
-	while(1)
-	{
-		__WFI();
-	}
-}
-
-
 void dataReadyCallback(data_packet_t** packets, uint8_t amountOfConnectedSensors)	// time of execution have to be less than 1,5 ms
 {
 	if( amountOfConnectedSensors == 1 )
@@ -44,6 +23,7 @@ void dataReadyCallback(data_packet_t** packets, uint8_t amountOfConnectedSensors
 		}
 	}
 
+	// For FIFO in ADXL362
 //	if( connected_sensors_amount == 1 )
 //	{
 //		for(uint8_t i = 0; i < 15; i++)
@@ -125,3 +105,28 @@ void dataReadyCallback(data_packet_t** packets, uint8_t amountOfConnectedSensors
 		uartWriteS(uartBuf);
 	}
 }
+
+static const HostCallbacks_t callbacks = { .dataReadyCallback = dataReadyCallback };
+
+// =======================================================================================
+int main(void)
+{
+	boardInit();
+	lcdProtocolInit();
+	Radio *radio = radioHostInit();
+	Rtc* rtc0 = rtcInit(RTC0);
+	Rtc* rtc1 = rtcInit(RTC1);
+
+	Protocol *protocol = initProtocol(radio, rtc0, rtc1, callbacks);
+
+	protocol->setFreqCollectData(FREQ_COLLECT_DATA_20Hz);
+	protocol->start();
+
+	while(1)
+	{
+		__WFI();
+	}
+}
+
+
+

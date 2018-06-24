@@ -120,6 +120,27 @@ static void initAdxl362()
 	}
 }
 
+void syncCallback(void)
+{
+	for(uint8_t k = 0; k < 5; k++)
+	{
+		memcpy(&dataToSend[k], &adxl362ReadXYZSamplesBuffer[k].buffer[2], 6);
+	}
+
+	nrf_spim_rx_buffer_set(NRF_SPIM1,(uint8_t *) &adxl362ReadXYZSamplesBuffer, ONE_READ_BUFFER_SIZE);
+
+	nrf_rtc_task_trigger(rtcAdxl362->RTCx, NRF_RTC_TASK_START);
+}
+
+void timeSlotCallback(data_packet_t* dataPacketPtr)
+{
+	memcpy(dataPacketPtr->data, dataToSend, 30);
+}
+
+static const SensorCallbacks_t sensorCallbacks = {
+		.timeSlotCallback = timeSlotCallback,
+		.syncCallback = syncCallback,
+};
 
 //=======================================================================================
 int main(void)
@@ -141,29 +162,12 @@ int main(void)
 	txBuffer[0] = READ_CMD;
 	txBuffer[1] = ADXL362_XDATA_L;
 	nrf_spim_tx_buffer_set(NRF_SPIM1, txBuffer, 2);
-	nrf_spim_rx_buffer_set(NRF_SPIM1,(uint8_t *) &adxl362ReadXYZSamplesBuffer, ONE_READ_BUFFER_SIZE);
+	nrf_spim_rx_buffer_set(NRF_SPIM1, (uint8_t *) &adxl362ReadXYZSamplesBuffer, ONE_READ_BUFFER_SIZE);
 
-	initProtocol(radio,rtc0);
+	initProtocol(radio, rtc0, sensorCallbacks);
 
 	while(1)
 	{
 		sleep();
 	}
-}
-
-void syncCallback(void)
-{
-	for(uint8_t k = 0; k < 5; k++)
-	{
-		memcpy(&dataToSend[k], &adxl362ReadXYZSamplesBuffer[k].buffer[2], 6);
-	}
-
-	nrf_spim_rx_buffer_set(NRF_SPIM1,(uint8_t *) &adxl362ReadXYZSamplesBuffer, ONE_READ_BUFFER_SIZE);
-
-	nrf_rtc_task_trigger(rtcAdxl362->RTCx, NRF_RTC_TASK_START);
-}
-
-void timeSlotCallback(data_packet_t* dataPacketPtr)
-{
-	memcpy(dataPacketPtr->data, dataToSend, 30);
 }

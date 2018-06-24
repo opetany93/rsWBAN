@@ -22,10 +22,17 @@ typedef enum
 
 } protocol_status_t;
 
+typedef struct{
+
+	void (*timeSlotCallback)(data_packet_t* dataPacketPtr);
+	void (*syncCallback)(void);
+
+}SensorCallbacks_t;
+
 // =================================== Functions ==========================================
 protocol_status_t connect(void);
 
-void initProtocol(Radio* radioDrv, Rtc* rtcDrv);
+void initProtocol(Radio* radioDrv, Rtc* rtcDrv, SensorCallbacks_t this);
 void deInitProtocol(void);
 
 void timeSlotHandler(void);

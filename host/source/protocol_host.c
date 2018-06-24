@@ -47,18 +47,14 @@ static void addSensor(uint8_t numberOfSlot);
 static void removeSensor(uint8_t numberOfSlot);
 static void changeRadioSlotChannel(uint8_t channel);
 
-// =======================================================================================
-__WEAK void dataReadyCallback(data_packet_t** packets, uint8_t amountOfConnectedSensors)
-{
-
-}
+static Protocol protocol;
 
 // =======================================================================================
-Protocol* initProtocol(Radio* radioDrv, Rtc* rtc0Drv, Rtc* rtc1Drv)
+Protocol* initProtocol(Radio* radioDrv, Rtc* rtc0Drv, Rtc* rtc1Drv, HostCallbacks_t callbacks)
 {
-	Protocol *protocol = malloc(sizeof(Protocol));
-	protocol->setFreqCollectData = setFreqCollectData;
-	protocol->start = start;
+	protocol.callbacks = callbacks;
+	protocol.setFreqCollectData = setFreqCollectData;
+	protocol.start = start;
 
 	radio = radioDrv;
 	rtc0 = rtc0Drv;
@@ -68,7 +64,7 @@ Protocol* initProtocol(Radio* radioDrv, Rtc* rtc0Drv, Rtc* rtc1Drv)
 	timeSlotsInit();
 	initPPI();
 
-	return protocol;
+	return &protocol;
 }
 
 // =======================================================================================
@@ -219,7 +215,8 @@ inline void syncTransmitHandler()
 
 	approvals = 0;
 
-	dataReadyCallback((data_packet_t**)packets, amountOfConnectedSensors);
+	if( NULL != protocol.callbacks.dataReadyCallback )
+		protocol.callbacks.dataReadyCallback((data_packet_t**)packets, amountOfConnectedSensors);
 }
 
 // =======================================================================================

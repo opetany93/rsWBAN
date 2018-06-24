@@ -32,13 +32,20 @@ typedef enum
 
 typedef struct{
 
+	void (*dataReadyCallback)(data_packet_t** packets, uint8_t amountOfConnectedSensors);
+
+}HostCallbacks_t;
+
+typedef struct{
+
 	void (*start)(void);
 	void (*setFreqCollectData)(uint8_t freq);
+	HostCallbacks_t callbacks;
 
 }Protocol;
 
 // =================================== Functions ==========================================
-Protocol* initProtocol(Radio* radioDrv, Rtc* rtc0Drv, Rtc* rtc1Drv);
+Protocol* initProtocol(Radio* radioDrv, Rtc* rtc0Drv, Rtc* rtc1Drv, HostCallbacks_t callbacks);
 
 void lcdProtocolInit(void);
 

@@ -18,8 +18,10 @@ static sync_packet_t* syncPacketPtr = (sync_packet_t* )packet;
 
 volatile uint8_t channel, syncFlag, connectedFlag = 0;
 
-Radio* radio = NULL;
-Rtc* rtc = NULL;
+static Radio* radio = NULL;
+static Rtc* rtc = NULL;
+
+static SensorCallbacks_t callbacks;
 
 // --------------- internal functions -------------
 static void initPPI(void);
@@ -30,21 +32,12 @@ static inline void prepareDataPacket(data_packet_t* dataPacket);
 static inline protocol_status_t tryConnect(init_packet_t* initPacket);
 // -------------------------------------------------
 
-__WEAK void timeSlotCallback(data_packet_t* dataPacketPtr)
-{
-
-}
-
-__WEAK void syncCallback(void)
-{
-
-}
-
 //=======================================================================================
-void initProtocol(Radio* radioDrv, Rtc* rtcDrv)
+void initProtocol(Radio* radioDrv, Rtc* rtcDrv, SensorCallbacks_t this)
 {
 	radio = radioDrv;
 	rtc = rtcDrv;
+	callbacks = this;
 
 	configRtc();
 }
@@ -195,7 +188,8 @@ inline void radioSensorHandler()
 				rtc->clear(rtc);
 				radio->setChannel(channel);
 
-				syncCallback();
+				if (NULL != callbacks.syncCallback)
+					callbacks.syncCallback();
 			}
 			else
 			{
@@ -215,7 +209,9 @@ inline void timeSlotHandler()
 	data_packet_t* dataPacket = (data_packet_t* )packet;
 
 	prepareDataPacket(dataPacket);
-	timeSlotCallback(dataPacket);
+
+	if(NULL != callbacks.timeSlotCallback)
+		callbacks.timeSlotCallback(dataPacket);
 
 	while (!isHFCLKstable())				// wait for stable HCLK which has been started via RTC0 event through PPI
 		;
