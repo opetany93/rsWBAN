@@ -11,7 +11,7 @@
 #include "nrf_rtc.h"
 #include "nrf_spim.h"
 
-#define ATTEMPTS_OF_CONNECT		20
+#include "protocolConf.h"
 
 char packet[PACKET_SIZE];
 static sync_packet_t* syncPacketPtr = (sync_packet_t* )packet;

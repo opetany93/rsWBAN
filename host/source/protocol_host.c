@@ -14,16 +14,18 @@
 #include "nrf_rtc.h"
 #include "nrf_ppi.h"
 
+#include "protocolConf.h"
+
 char packet[PACKET_SIZE];
 static data_packet_t* packetAsData = (data_packet_t* )packet;
 static init_packet_t* packetAsInit = (init_packet_t* )packet;
 static sync_packet_t* packetAsSync = (sync_packet_t* )packet;
 volatile data_packet_t* packets[4];
 
-volatile uint8_t flagsOfConnectedSensors = 0;
+static volatile uint8_t flagsOfConnectedSensors = 0;
 volatile uint8_t amountOfConnectedSensors = 0;
 
-volatile uint8_t channel;
+static volatile uint8_t channel;
 
 volatile uint32_t rtc_val_CC0_base;
 volatile uint32_t rtc_val_CC1;
@@ -70,8 +72,8 @@ Protocol* initProtocol(Radio* radioDrv, Rtc* rtc0Drv, Rtc* rtc1Drv, HostCallback
 // =======================================================================================
 static void sufInit()
 {
-	rtc0->setCCreg(rtc0, RTC_CHANNEL0, 65);				// number of RTC0 impulses after which starts determining the time slots are by RTC1
-	rtc0->setCCreg(rtc0, RTC_CHANNEL1, 1638);			// determination of the SUF
+	rtc0->setCCreg(rtc0, RTC_CHANNEL0, TICKS_RTC0_CHANNEL0);		// number of RTC0 impulses after which starts determining the time slots are by RTC1
+	rtc0->setCCreg(rtc0, RTC_CHANNEL1, TICKS_RTC0_CHANNEL1);		// determination of the SUF
 	rtc0->setPrescaler(rtc0, 0);
 	rtc0->compareEventEnable(rtc0, RTC_CHANNEL0);
 	rtc0->compareInterruptEnable(rtc0, RTC_CHANNEL0);
@@ -85,7 +87,7 @@ static void sufInit()
 // =======================================================================================
 static inline void timeSlotsInit()
 {
-	rtc1->setCCreg(rtc1, RTC_CHANNEL0, 392);
+	rtc1->setCCreg(rtc1, RTC_CHANNEL0, TICKS_OF_TIME_SLOT);
 	rtc1->setPrescaler(rtc1, 0);
 	rtc1->compareEventEnable(rtc1, RTC_CHANNEL0);
 	rtc1->compareInterruptEnable(rtc1, RTC_CHANNEL0);
@@ -205,9 +207,6 @@ inline void syncTransmitHandler()
 	
 	prepareSyncPacket();
 
-	//nrf_gpio_pin_toggle(ARDUINO_0_PIN);
-	gpioGeneratePulse(ARDUINO_0_PIN);
-
 	radio->sendPacket((uint32_t *)packet);							// send sync packet
 	radio->disableRadio();
 	radio->clearFlags();
@@ -248,13 +247,11 @@ inline void timeSlotListenerHandler()
 	if ( flagsOfConnectedSensors & (1 << channel) )
 	{
 		changeRadioSlotChannel(channel);
-		nrf_gpio_pin_toggle(ARDUINO_1_PIN);
 
 	}
 	else if( channel != BROADCAST_CHANNEL )
 	{
 		changeRadioSlotChannel(BROADCAST_CHANNEL);
-		nrf_gpio_pin_toggle(ARDUINO_2_PIN);
 	}
 
 	channel++;

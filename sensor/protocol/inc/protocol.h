@@ -5,12 +5,6 @@
 #include "rtc.h"
 #include "packets.h"
 
-#define BROADCAST_CHANNEL						30UL
-#define FIRST_CHANNEL							0UL
-#define SYNC_CHANNEL							29UL
-
-#define LENGTH_PACKET_FOR_TESTS 				15
-
 typedef enum
 {
 	CONNECTED				= 0x00U,
@@ -38,8 +32,5 @@ void deInitProtocol(void);
 void timeSlotHandler(void);
 void syncHandler(void);
 void radioSensorHandler(void);
-
-void timeSlotCallback(data_packet_t* dataPacketPtr);
-void syncCallback(void);
 
 #endif
