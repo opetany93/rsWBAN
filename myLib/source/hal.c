@@ -34,6 +34,7 @@ static void initGpio()
 	//nrf_gpio_cfg_output(LED_1);
 	nrf_gpio_cfg_output(LED_2);
 	//nrf_gpio_cfg_output(SCL_PIN);
+	//nrf_gpio_cfg_output(SDA_PIN);
 
 	//nrf_gpio_pin_set(LED_1);
 	nrf_gpio_pin_set(LED_2);
@@ -56,7 +57,7 @@ static void initGpio()
 	nrf_gpio_pin_set(LED_4);
 
 	//buttons
-//	nrf_gpio_cfg_input(BUTTON_1, NRF_GPIO_PIN_PULLUP);
+	nrf_gpio_cfg_input(BUTTON_1, NRF_GPIO_PIN_PULLUP);
 //	nrf_gpio_cfg_input(BUTTON_2, NRF_GPIO_PIN_PULLUP);
 //	nrf_gpio_cfg_input(BUTTON_3, NRF_GPIO_PIN_PULLUP);
 //	nrf_gpio_cfg_input(BUTTON_4, NRF_GPIO_PIN_PULLUP);
@@ -67,7 +68,7 @@ static void initGpio()
 #if defined(NRF52_SENSOR)
 // -------------------------------------------------------------------------------------
 
-#define DC_DC_CONVERTER_ON 		1
+#define DC_DC_CONVERTER_ON 		0
 
 static void setNvicPriorities()
 {

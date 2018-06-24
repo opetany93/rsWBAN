@@ -61,7 +61,7 @@ void uartInit(void)
 	nrf_uart_enable(UART);										//Enable UART
 	nrf_uart_task_trigger(UART, NRF_UART_TASK_STARTTX);			//Start UART transmitter
 	nrf_uart_task_trigger(UART, NRF_UART_TASK_STARTRX);			//Start UART receiver
-	nrf_uart_baudrate_set(UART, NRF_UARTE_BAUDRATE_1000000);	//set speed
+	nrf_uart_baudrate_set(UART, NRF_UART_BAUDRATE_1000000);	//set speed
 
 	nrf_uart_txrx_pins_set(UART, UART_TX_PIN, UART_RX_PIN);
 	nrf_uart_hwfc_pins_disconnect(UART);					//disable RTS and CTS

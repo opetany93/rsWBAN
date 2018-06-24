@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-uint32_t rnd8();
+uint32_t rnd8(void);
 void fillUint16TableWithRandomValues(uint16_t* table, uint16_t size);
 
 

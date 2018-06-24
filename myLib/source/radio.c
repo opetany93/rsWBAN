@@ -271,7 +271,7 @@ static inline int8_t readPacket(uint32_t *packet)
 }
 
 // =======================================================================================
-static inline uint8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms)
+static inline RADIO_status_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_ms)
 {
 	RADIO->PACKETPTR = (uint32_t)packet;
 	
@@ -299,7 +299,7 @@ static inline uint8_t readPacketWithTimeout(uint32_t *packet, uint16_t timeout_m
 }
 
 // =======================================================================================
-static inline uint8_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms)
+static inline RADIO_status_t sendPacketWithResponse(uint32_t *packet, uint16_t timeout_ms)
 {
 	sendPacket((uint32_t *)packet);
 

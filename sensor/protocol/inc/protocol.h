@@ -26,12 +26,13 @@ typedef enum
 protocol_status_t connect(void);
 
 void initProtocol(Radio* radioDrv, Rtc* rtcDrv);
-void deInitProtocol();
+void deInitProtocol(void);
 
 void timeSlotHandler(void);
 void syncHandler(void);
 void radioSensorHandler(void);
 
 void timeSlotCallback(data_packet_t* dataPacketPtr);
+void syncCallback(void);
 
 #endif

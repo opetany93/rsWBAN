@@ -8,6 +8,9 @@
 #include "hal.h"
 #include <stddef.h>
 
+#include "nrf_rtc.h"
+#include "nrf_spim.h"
+
 #define ATTEMPTS_OF_CONNECT		20
 
 char packet[PACKET_SIZE];
@@ -19,8 +22,8 @@ Radio* radio = NULL;
 Rtc* rtc = NULL;
 
 // --------------- internal functions -------------
-static void initPPI();
-static void configRtc();
+static void initPPI(void);
+static void configRtc(void);
 static void setRtcValues(init_packet_t* initPacket);
 static bool waitForSync(uint16_t ms);
 static inline void prepareDataPacket(data_packet_t* dataPacket);
@@ -28,6 +31,11 @@ static inline protocol_status_t tryConnect(init_packet_t* initPacket);
 // -------------------------------------------------
 
 __WEAK void timeSlotCallback(data_packet_t* dataPacketPtr)
+{
+
+}
+
+__WEAK void syncCallback(void)
 {
 
 }
@@ -72,6 +80,7 @@ protocol_status_t connect(void)
 			if(waitForSync(200))
 			{
 				rtc->start(rtc);
+
 				radio->setChannel(channel);
 				radio->setPacketPtr((uint32_t)packet);
 				radio->endInterruptEnable();
@@ -101,7 +110,7 @@ protocol_status_t connect(void)
 static inline protocol_status_t tryConnect(init_packet_t* initPacket)
 {
 	protocol_status_t connectStatus = DISCONNECTED;
-	RADIO_status_t responseStatus = 4;
+	RADIO_status_t responseStatus = RADIO_NOT_OK;
 	
 	initPacket->payloadSize = 1;
 	initPacket->packetType = PACKET_init;
@@ -129,8 +138,8 @@ static inline protocol_status_t tryConnect(init_packet_t* initPacket)
 
 static inline void setRtcValues(init_packet_t* initPacket)
 {
-	rtc->setCCreg(rtc, 0, initPacket->rtcValCC0);
-	rtc->setCCreg(rtc, 1, initPacket->rtcValCC1);
+	rtc->setCCreg(rtc, RTC_CHANNEL0, initPacket->rtcValCC0);
+	rtc->setCCreg(rtc, RTC_CHANNEL1, initPacket->rtcValCC1);
 }
 
 //=======================================================================================
@@ -149,9 +158,10 @@ static void initPPI()
 static void configRtc()
 {
 	rtc->setPrescaler(rtc, 0);
-	rtc->compareEventEnable(rtc, 0);
-	rtc->compareInterruptEnable(rtc, 0);
-	rtc->compareInterruptEnable(rtc, 1);
+	rtc->compareEventEnable(rtc, RTC_CHANNEL0);
+	rtc->compareEventEnable(rtc, RTC_CHANNEL1);
+	rtc->compareInterruptEnable(rtc, RTC_CHANNEL0);
+	rtc->compareInterruptEnable(rtc, RTC_CHANNEL1);
 	rtc->clear(rtc);
 }
 
@@ -184,6 +194,8 @@ inline void radioSensorHandler()
 
 				rtc->clear(rtc);
 				radio->setChannel(channel);
+
+				syncCallback();
 			}
 			else
 			{
@@ -209,8 +221,6 @@ inline void timeSlotHandler()
 		;
 	
 	radio->txEnable();
-
-	gpioGeneratePulse(SCL_PIN);
 }
 
 //=======================================================================================
@@ -238,7 +248,6 @@ inline void syncHandler()
 	
 	radio->rxEnable();
 	
-	gpioGeneratePulse(SCL_PIN);
 	LED_2_TOGGLE();
 }
 //=======================================================================================

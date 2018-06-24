@@ -209,7 +209,8 @@ inline void syncTransmitHandler()
 	
 	prepareSyncPacket();
 
-	nrf_gpio_pin_toggle(ARDUINO_0_PIN);
+	//nrf_gpio_pin_toggle(ARDUINO_0_PIN);
+	gpioGeneratePulse(ARDUINO_0_PIN);
 
 	radio->sendPacket((uint32_t *)packet);							// send sync packet
 	radio->disableRadio();
@@ -333,7 +334,7 @@ void setFreqCollectData(uint8_t freq)
 		
 		case FREQ_COLLECT_DATA_20Hz:
 			rtc_val_CC0_base = 205;
-			rtc_val_CC1 = 1606;
+			rtc_val_CC1 = 1596;			// 49 ms  + time of propagation packet sync
 //			RTC0->CC[0] = 1638;
 //			RTC1->CC[0] = 410;
 		

@@ -17,6 +17,6 @@ void boardInit(void);
 void buttonInterruptInit(void);
 void error(void);
 void gpioGeneratePulse(uint8_t pin);
-void sleep();
+void sleep(void);
 
 #endif
